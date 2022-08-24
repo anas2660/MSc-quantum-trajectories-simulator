@@ -1,15 +1,50 @@
-use nalgebra::*;
+use std::{ops::Div, io::Write};
 
-#[allow(non_upper_case_globals)]
-const sigma_z: Operator = Operator::new(
-    1.0, 0.0,
-    0.0,-1.0
-);
+use nalgebra::*;
 
 
 
 type Operator = SMatrix::<f32, 2, 2>;
+type ComplexOperator = SMatrix<Complex<f32>, 2, 2>;
 type Dimensions = usize;
+
+const ONE: Complex<f32> = Complex::new(1.0, 0.0);
+const MINUS_ONE: Complex<f32> = Complex::new(-1.0, 0.0);
+const I: Complex<f32> = Complex::new(0.0, 1.0);
+const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
+const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
+
+#[allow(non_upper_case_globals)]
+const sigma_x: Operator = Operator::new(
+    0.0, 1.0,
+    1.0, 0.0
+);
+
+#[allow(non_upper_case_globals)]
+const sigma_y: ComplexOperator = ComplexOperator::new(
+    ZERO, MINUS_I,
+       I, ZERO
+);
+
+#[allow(non_upper_case_globals)]
+const sigma_z: ComplexOperator = ComplexOperator::new(
+    ONE,  ZERO,
+    ZERO, MINUS_ONE
+);
+
+#[allow(non_upper_case_globals)]
+const sigma_plus: ComplexOperator = ComplexOperator::new(
+    ZERO, ONE,
+    ZERO, ZERO
+);
+
+#[allow(non_upper_case_globals)]
+const sigma_minus: ComplexOperator = ComplexOperator::new(
+    ZERO, ZERO,
+    ONE,  ZERO
+);
+
+
 
 // From qutip implementation
 macro_rules! lowering {
@@ -27,43 +62,144 @@ macro_rules! identity {
     ($D:expr) => (SMatrix::<f32,$D,$D>::identity());
 }
 
-fn main() {
-    let v = SVector::<f32, 2>::from_element(1.0f32);
+macro_rules! eval {
+    ($x:expr) => { println!("{} = {}", stringify!($x), $x); };
+}
 
-    const N: Dimensions = 10;
-    let omega_a = 1.0;
-    let omega_c = 1.25;
-    let g = 0.05;
+fn reference() {
+    //  const N: Dimensions = 10;
+    //let omega_a = 1.0;
+    //let omega_c = 1.25;
+    //let g = 0.05;
+//
+//    let a  = identity!(2).kronecker(&lowering!(N));
+//    let sm = lowering!(2).kronecker(&identity!(N));
+//    let sz = sigma_z.kronecker(&identity!(N));
+//
+//    let hamiltonian =
+//        0.5 * omega_a * sz +
+//        omega_c * a.adjoint() * a +
+//        g * (a.adjoint()*sm + a*sm.adjoint());
+//
+//
+//    eval!(hamiltonian);
+//    eval!(sigma_z);
+//    eval!(hamiltonian.eigenvalues().unwrap());
+//    eval!(a);
+//    eval!(sm);
+//    eval!(sz);
+//    eval!(hamiltonian);
+}
 
-    let a  = identity!(2).kronecker(&lowering!(N));
-    let sm = lowering!(2).kronecker(&identity!(N));
-    let sz = sigma_z.kronecker(&identity!(N));
-    
+
+
+fn cscale(c: Complex<f32>, m: ComplexOperator) -> ComplexOperator {
+    m.component_mul(&ComplexOperator::from_element(c))
+}
+
+pub trait Derivative {
+    type ResultValue;
+    fn dv(&self, t: f32, x: Self::ResultValue) -> Self::ResultValue;
+}
+
+struct QubitSystem {
+    hamiltonian: ComplexOperator,
+    psi: Vector2<Complex<f32>>,
+    t: f32
+}
+
+impl Derivative for QubitSystem {
+    type ResultValue = Vector2<Complex<f32>>;
+
+    fn dv(&self, t: f32, x: Self::ResultValue) -> Self::ResultValue {
+        cscale(MINUS_I, self.hamiltonian) * (x)
+    }
+}
+
+fn runge_kutta(system: QubitSystem, dt: f32) -> QubitSystem {
+    let k_0 = system.dv(0.0, system.psi).scale(dt);
+    let k_1 = system.dv(0.0, system.psi + k_0.scale(0.5)).scale(dt);
+    let k_2 = system.dv(0.0, system.psi + k_1.scale(0.5)).scale(dt);
+    let k_3 = system.dv(0.0, system.psi + k_2).scale(dt);
+    let mut result = system;
+    result.psi += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0);
+    result
+    // Reference
+    //  valarray<ℝ> k[4];
+    // k[0] = dt * s(s.t, s.x);
+    // k[1] = dt * s(s.t + ½ dt, s.x + ½ k[0]);
+    // k[2] = dt * s(s.t + ½ dt, s.x + ½ k[1]);
+    // k[3] = dt * s(s.t + dt, s.x + k[2]);
+    // s.x += (k[1] + k[2] + ½(k[0] + k[3])) / 3.0;
+    // s.t += dt;
+    // return s;
+}
+
+fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
+    let mut result = system;
+    result.psi += result.dv(0.0, result.psi).scale(dt);
+    result
+}
+
+
+
+
+fn ours() {
+    let delta_s = ONE;
+    let g = ONE*0.05;
+    let kappa_1 = 1.0;
+    let kappa = 0.1;
+    let beta = ComplexOperator::identity();
+    let delta_r = 1.0;
+
+    let alpha =
+        cscale((2.0*kappa_1).sqrt()/(kappa+I*delta_r), beta);
+
+    let ddelta = delta_r - delta_s;
+    let epsilon_s = g*g * ddelta/(kappa*kappa + ddelta*ddelta);
+
+
     let hamiltonian =
-        0.5 * omega_a * sz +
-        omega_c * a.adjoint() * a +
-        g * (a.adjoint()*sm + a*sm.adjoint());
+        cscale(delta_s*0.5, sigma_z) +
+        cscale(g, alpha*sigma_plus + alpha.conjugate() * sigma_minus) -
+        cscale(epsilon_s, sigma_plus*sigma_minus);
 
-    //*m.index_mut((10,10)) = 2.0;
-    
-    macro_rules! eval {
-        ($x:expr) => { println!("{} = {}", stringify!($x), $x); };
+    let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
+
+    let mut system = QubitSystem { hamiltonian, psi, t: 0.0 };
+
+    let mut file = std::fs::File::create("data.csv").unwrap();
+    file.write(b"index, x_real, x_imag, y_real, y_imag, magnitude, magnitude_squared\n").unwrap();
+
+    for i in 0..50000 {
+        let psi = &system.psi;
+        file.write(format!(
+            "{i}, {}, {}, {}, {}, {}, {}\n",
+            psi.x.real(), psi.x.imaginary(),
+            psi.y.real(), psi.y.imaginary(),
+            psi.magnitude(), psi.magnitude_squared()
+        ).as_bytes()).unwrap();
+
+
+        //println!("Step {i}, Psi: [{}, {}]", system.psi.x, system.psi.y);
+
+
+
+        system = runge_kutta(system, 0.001);
     }
 
-    eval!(hamiltonian);
-    eval!(sigma_z);
-    
-    //eval!(m*v);
+
+}
 
 
-    
-    //eval!(m.index((2, 1..4)));
 
-    eval!(hamiltonian.eigenvalues().unwrap());
-    eval!(a);
-    eval!(sm);
-    eval!(sz);
-    eval!(hamiltonian);
-    //eval!(hamiltonian.eigenvalues().unwrap());
-    //eval!(lowering::<3>())
+
+fn main() {
+    let v = Vector2::from_element(1.0f32);
+
+    println!("Reference (Qutip) --------");
+    reference();
+
+    println!("Ours ---------------------", );
+    ours();
 }
