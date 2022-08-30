@@ -1,12 +1,12 @@
-use std::{ops::Div, io::Write};
+use std::io::Write;
 
 use nalgebra::*;
 
 
 
-type Operator = SMatrix::<f32, 2, 2>;
+//type Operator = SMatrix::<f32, 2, 2>;
 type ComplexOperator = SMatrix<Complex<f32>, 2, 2>;
-type Dimensions = usize;
+//type Dimensions = usize;
 
 const ONE: Complex<f32> = Complex::new(1.0, 0.0);
 const MINUS_ONE: Complex<f32> = Complex::new(-1.0, 0.0);
@@ -14,6 +14,7 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
+/*
 #[allow(non_upper_case_globals)]
 const sigma_x: Operator = Operator::new(
     0.0, 1.0,
@@ -25,7 +26,7 @@ const sigma_y: ComplexOperator = ComplexOperator::new(
     ZERO, MINUS_I,
        I, ZERO
 );
-
+*/
 #[allow(non_upper_case_globals)]
 const sigma_z: ComplexOperator = ComplexOperator::new(
     ONE,  ZERO,
@@ -97,26 +98,14 @@ fn cscale(c: Complex<f32>, m: ComplexOperator) -> ComplexOperator {
     m.component_mul(&ComplexOperator::from_element(c))
 }
 
-pub trait Derivative {
-    type ResultValue;
-    fn dv(&self, t: f32, x: Self::ResultValue) -> Self::ResultValue;
-}
-
 struct QubitSystem {
     hamiltonian: ComplexOperator,
     psi: Vector2<Complex<f32>>,
-    t: f32
+    //t: f32
 }
 
-impl Derivative for QubitSystem {
-    type ResultValue = Vector2<Complex<f32>>;
 
-    fn dv(&self, t: f32, x: Self::ResultValue) -> Self::ResultValue {
-        cscale(MINUS_I, self.hamiltonian) * (x)
-    }
-}
-
-fn runge_kutta(system: QubitSystem, dt: f32) -> QubitSystem {
+fn runge_kutta_old(system: QubitSystem, dt: f32) -> QubitSystem {
     let k_0 = system.dv(0.0, system.psi).scale(dt);
     let k_1 = system.dv(0.0, system.psi + k_0.scale(0.5)).scale(dt);
     let k_2 = system.dv(0.0, system.psi + k_1.scale(0.5)).scale(dt);
@@ -124,15 +113,44 @@ fn runge_kutta(system: QubitSystem, dt: f32) -> QubitSystem {
     let mut result = system;
     result.psi += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0);
     result
-    // Reference
-    //  valarray<ℝ> k[4];
-    // k[0] = dt * s(s.t, s.x);
-    // k[1] = dt * s(s.t + ½ dt, s.x + ½ k[0]);
-    // k[2] = dt * s(s.t + ½ dt, s.x + ½ k[1]);
-    // k[3] = dt * s(s.t + dt, s.x + k[2]);
-    // s.x += (k[1] + k[2] + ½(k[0] + k[3])) / 3.0;
-    // s.t += dt;
-    // return s;
+}
+
+
+
+
+pub trait Derivative {
+    type T: Field;
+    fn dv_0(&self, dt: f32) -> Self::T;
+    fn dv(&self, t: f32, x: Self::T, dt: f32) -> Self::T;
+    fn combine_result(&self, k_0: Self::T, k_1: Self::T, k_2: Self::T, k_3: Self::T) -> Self;
+}
+
+
+impl Derivative for QubitSystem {
+    type T = Vector2<Complex<f32>>;
+
+    fn dv_0(&self, dt: f32) -> Self::T {
+        (cscale(MINUS_I, self.hamiltonian) * (self.psi+dx)).scale(dt)
+    }
+
+    fn dv(&self, _t: f32, dx: Self::T, dt: f32) -> Self::T {
+        (cscale(MINUS_I, self.hamiltonian) * (self.psi+dx)).scale(dt)
+    }
+
+    fn combine_result(&self, k_0: Self::T, k_1: Self::T, k_2: Self::T, k_3: Self::T) -> Self {
+        Self {
+            hamiltonian: self.hamiltonian,
+            psi: self.psi + (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0)
+        }
+    }
+}
+
+fn runge_kutta<T: Derivative + ClosedMul>(system: T, dt: f32) -> T {
+    let k_0 = system.dv(0.0, , dt);
+    let k_1 = system.dv(0.0, k_0.scale(0.5), dt);
+    let k_2 = system.dv(0.0, k_1.scale(0.5), dt);
+    let k_3 = system.dv(0.0, k_2, dt);
+    system.combine_result(k_0, k_1, k_2, k_3)
 }
 
 fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
@@ -142,11 +160,9 @@ fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
 }
 
 
-
-
 fn ours() {
     let delta_s = ONE;
-    let g = ONE*0.05;
+    let g = ONE;////ONE*0.65;
     let kappa_1 = 1.0;
     let kappa = 0.1;
     let beta = ComplexOperator::identity();
@@ -160,34 +176,77 @@ fn ours() {
 
 
     let hamiltonian =
-        cscale(delta_s*0.5, sigma_z) +
-        cscale(g, alpha*sigma_plus + alpha.conjugate() * sigma_minus) -
-        cscale(epsilon_s, sigma_plus*sigma_minus);
+        cscale(delta_s*0.5, sigma_z)
+        + cscale(g, alpha*sigma_plus + alpha.conjugate() * sigma_minus)
+        - cscale(epsilon_s, sigma_plus*sigma_minus);
+
+    let gamma_p = 2.0*g*g*kappa/(kappa*kappa + ddelta*ddelta);
+
+    // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
+    // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
+    // let hamiltonian = hamiltonian;
+    //    - cscale(0.5*I, c_1.ad_mul(&c_1));
+    //    - cscale(0.5*I, c_2.ad_mul(&c_2));
 
     let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
 
-    let mut system = QubitSystem { hamiltonian, psi, t: 0.0 };
+    let mut system = QubitSystem { hamiltonian, psi };
 
     let mut file = std::fs::File::create("data.csv").unwrap();
     file.write(b"index, x_real, x_imag, y_real, y_imag, magnitude, magnitude_squared\n").unwrap();
 
     for i in 0..50000 {
         let psi = &system.psi;
-        file.write(format!(
-            "{i}, {}, {}, {}, {}, {}, {}\n",
-            psi.x.real(), psi.x.imaginary(),
-            psi.y.real(), psi.y.imaginary(),
-            psi.magnitude(), psi.magnitude_squared()
-        ).as_bytes()).unwrap();
-
-
+        ///////////file.write(format!(
+        ///////////    "{i}, {}, {}, {}, {}, {}, {}\n",
+        ///////////    psi.x.real(), psi.x.imaginary(),
+        ///////////    psi.y.real(), psi.y.imaginary(),
+        ///////////    psi.magnitude(), psi.magnitude_squared()
+        ///////////).as_bytes()).unwrap();
         //println!("Step {i}, Psi: [{}, {}]", system.psi.x, system.psi.y);
-
-
 
         system = runge_kutta(system, 0.001);
     }
+}
 
+
+
+fn ours2() {
+    let delta_s = ONE;
+    let g = ONE;////ONE*0.65;
+    let kappa_1 = 1.0;
+    let kappa = 0.1;
+    let beta = ComplexOperator::identity();
+    let delta_r = 1.0;
+
+    let alpha =
+        cscale((2.0*kappa_1).sqrt()/(kappa+I*delta_r), beta);
+
+    let ddelta = delta_r - delta_s;
+    let epsilon_s = g*g * ddelta/(kappa*kappa + ddelta*ddelta);
+
+
+    let hamiltonian =
+        cscale(delta_s*0.5, sigma_z)
+        + cscale(g, alpha*sigma_plus + alpha.conjugate() * sigma_minus)
+        - cscale(epsilon_s, sigma_plus*sigma_minus);
+
+    let gamma_p = 2.0*g*g*kappa/(kappa*kappa + ddelta*ddelta);
+
+    // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
+    // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
+    // let hamiltonian = hamiltonian;
+    //    - cscale(0.5*I, c_1.ad_mul(&c_1));
+    //    - cscale(0.5*I, c_2.ad_mul(&c_2));
+
+    let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
+
+    let rho = psi.tr_mul(&psi);
+
+    loop {
+        (hamiltonian*rho - rho*hamiltonian);
+
+    }
 
 }
 
@@ -195,7 +254,7 @@ fn ours() {
 
 
 fn main() {
-    let v = Vector2::from_element(1.0f32);
+    let _v = Vector2::from_element(1.0f32);
 
     println!("Reference (Qutip) --------");
     reference();
