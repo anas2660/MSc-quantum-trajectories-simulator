@@ -1,11 +1,11 @@
-use std::io::Write;
+use std::{io::Write, ops::Mul, arch};
 
 use nalgebra::*;
 
 
 
 //type Operator = SMatrix::<f32, 2, 2>;
-type ComplexOperator = SMatrix<Complex<f32>, 2, 2>;
+type Operator = SMatrix<Complex<f32>, 2, 2>;
 //type Dimensions = usize;
 
 const ONE: Complex<f32> = Complex::new(1.0, 0.0);
@@ -22,25 +22,25 @@ const sigma_x: Operator = Operator::new(
 );
 
 #[allow(non_upper_case_globals)]
-const sigma_y: ComplexOperator = ComplexOperator::new(
+const sigma_y: Operator = Operator::new(
     ZERO, MINUS_I,
        I, ZERO
 );
 */
 #[allow(non_upper_case_globals)]
-const sigma_z: ComplexOperator = ComplexOperator::new(
+const sigma_z: Operator = Operator::new(
     ONE,  ZERO,
     ZERO, MINUS_ONE
 );
 
 #[allow(non_upper_case_globals)]
-const sigma_plus: ComplexOperator = ComplexOperator::new(
+const sigma_plus: Operator = Operator::new(
     ZERO, ONE,
     ZERO, ZERO
 );
 
 #[allow(non_upper_case_globals)]
-const sigma_minus: ComplexOperator = ComplexOperator::new(
+const sigma_minus: Operator = Operator::new(
     ZERO, ZERO,
     ONE,  ZERO
 );
@@ -94,78 +94,54 @@ fn reference() {
 
 
 
-fn cscale(c: Complex<f32>, m: ComplexOperator) -> ComplexOperator {
-    m.component_mul(&ComplexOperator::from_element(c))
+fn cscale(c: Complex<f32>, m: Operator) -> Operator {
+    m.component_mul(&Operator::from_element(c))
 }
 
-struct QubitSystem {
-    hamiltonian: ComplexOperator,
+struct QubitSystemPsi {
+    hamiltonian: Operator,
     psi: Vector2<Complex<f32>>,
     //t: f32
 }
 
-
-fn runge_kutta_old(system: QubitSystem, dt: f32) -> QubitSystem {
-    let k_0 = system.dv(0.0, system.psi).scale(dt);
-    let k_1 = system.dv(0.0, system.psi + k_0.scale(0.5)).scale(dt);
-    let k_2 = system.dv(0.0, system.psi + k_1.scale(0.5)).scale(dt);
-    let k_3 = system.dv(0.0, system.psi + k_2).scale(dt);
-    let mut result = system;
-    result.psi += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0);
-    result
+struct QubitSystem {
+    hamiltonian: Operator,
+    rho: Operator,
+    //t: f32
 }
 
 
 
+impl QubitSystem {
 
-pub trait Derivative {
-    type T: Field;
-    fn dv_0(&self, dt: f32) -> Self::T;
-    fn dv(&self, t: f32, x: Self::T, dt: f32) -> Self::T;
-    fn combine_result(&self, k_0: Self::T, k_1: Self::T, k_2: Self::T, k_3: Self::T) -> Self;
-}
-
-
-impl Derivative for QubitSystem {
-    type T = Vector2<Complex<f32>>;
-
-    fn dv_0(&self, dt: f32) -> Self::T {
-        (cscale(MINUS_I, self.hamiltonian) * (self.psi+dx)).scale(dt)
+    fn dv(&self, rho: Operator) -> Operator {
+        cscale(MINUS_I, self.hamiltonian*rho - rho*self.hamiltonian)
     }
 
-    fn dv(&self, _t: f32, dx: Self::T, dt: f32) -> Self::T {
-        (cscale(MINUS_I, self.hamiltonian) * (self.psi+dx)).scale(dt)
+    fn runge_kutta(&mut self, dt: f32) {
+        let k_0 = self.dv(self.rho).scale(dt);
+        let k_1 = self.dv(self.rho + k_0.scale(0.5)).scale(dt);
+        let k_2 = self.dv(self.rho + k_1.scale(0.5)).scale(dt);
+        let k_3 = self.dv(self.rho + k_2).scale(dt);
+        self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0);
     }
 
-    fn combine_result(&self, k_0: Self::T, k_1: Self::T, k_2: Self::T, k_3: Self::T) -> Self {
-        Self {
-            hamiltonian: self.hamiltonian,
-            psi: self.psi + (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0)
-        }
-    }
 }
 
-fn runge_kutta<T: Derivative + ClosedMul>(system: T, dt: f32) -> T {
-    let k_0 = system.dv(0.0, , dt);
-    let k_1 = system.dv(0.0, k_0.scale(0.5), dt);
-    let k_2 = system.dv(0.0, k_1.scale(0.5), dt);
-    let k_3 = system.dv(0.0, k_2, dt);
-    system.combine_result(k_0, k_1, k_2, k_3)
-}
-
-fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
-    let mut result = system;
-    result.psi += result.dv(0.0, result.psi).scale(dt);
-    result
-}
+//fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
+//    let mut result = system;
+//    result.psi += result.dv(0.0, result.psi).scale(dt);
+//    result
+//}
 
 
 fn ours() {
+    /*
     let delta_s = ONE;
     let g = ONE;////ONE*0.65;
     let kappa_1 = 1.0;
     let kappa = 0.1;
-    let beta = ComplexOperator::identity();
+    let beta = Operator::identity();
     let delta_r = 1.0;
 
     let alpha =
@@ -207,16 +183,18 @@ fn ours() {
 
         system = runge_kutta(system, 0.001);
     }
+
+    */
 }
 
 
 
 fn ours2() {
     let delta_s = ONE;
-    let g = ONE;////ONE*0.65;
+    let g = ONE*0.05;
     let kappa_1 = 1.0;
     let kappa = 0.1;
-    let beta = ComplexOperator::identity();
+    let beta = Operator::identity();
     let delta_r = 1.0;
 
     let alpha =
@@ -241,12 +219,17 @@ fn ours2() {
 
     let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
 
-    let rho = psi.tr_mul(&psi);
+    let rho = psi.mul(&psi.transpose());
 
-    loop {
-        (hamiltonian*rho - rho*hamiltonian);
+    let mut system = QubitSystem { hamiltonian, rho };
 
+    for i in 1..1000000 {
+        system.runge_kutta(0.0001);
+        if i % (1<<16) == 0 {
+            println!("Trace: {}", system.rho.trace());
+        }
     }
+
 
 }
 
@@ -260,5 +243,5 @@ fn main() {
     reference();
 
     println!("Ours ---------------------", );
-    ours();
+    ours2();
 }
