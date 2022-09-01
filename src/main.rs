@@ -1,4 +1,4 @@
-use std::{io::Write, ops::Mul, arch};
+use std::{io::Write, ops::Mul, arch, char::ToUppercase};
 
 use nalgebra::*;
 
@@ -98,6 +98,12 @@ fn cscale(c: Complex<f32>, m: Operator) -> Operator {
     m.component_mul(&Operator::from_element(c))
 }
 
+fn cscale4(c: Complex<f32>, m: SMatrix<Complex<f32>, 4, 4>) -> SMatrix<Complex<f32>, 4, 4> {
+    m.component_mul(&SMatrix::<Complex<f32>, 4, 4>::from_element(c))
+}
+
+
+
 struct QubitSystemPsi {
     hamiltonian: Operator,
     psi: Vector2<Complex<f32>>,
@@ -105,8 +111,8 @@ struct QubitSystemPsi {
 }
 
 struct QubitSystem {
-    hamiltonian: Operator,
-    rho: Operator,
+    hamiltonian: SMatrix<Complex<f32>, 4, 4>,
+    rho: Vector4<Complex<f32>>,
     //t: f32
 }
 
@@ -114,8 +120,8 @@ struct QubitSystem {
 
 impl QubitSystem {
 
-    fn dv(&self, rho: Operator) -> Operator {
-        cscale(MINUS_I, self.hamiltonian*rho - rho*self.hamiltonian)
+    fn dv(&self, rho: Vector4<Complex<f32>>) -> Vector4<Complex<f32>> {
+        self.hamiltonian * rho
     }
 
     fn runge_kutta(&mut self, dt: f32) {
@@ -125,6 +131,7 @@ impl QubitSystem {
         let k_3 = self.dv(self.rho + k_2).scale(dt);
         self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0/3.0);
     }
+
 
 }
 
@@ -187,9 +194,15 @@ fn ours() {
     */
 }
 
+fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<Complex<f32>, 4, 4> {
+    m1.kronecker(&m2.transpose())
+}
 
 
 fn ours2() {
+    let A = Operator::from_fn(|r,c| ONE*(r*c) as f32);
+    let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
+
     let delta_s = ONE;
     let g = ONE*0.05;
     let kappa_1 = 1.0;
@@ -220,13 +233,23 @@ fn ours2() {
     let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
 
     let rho = psi.mul(&psi.transpose());
+    let rho = Vector4::<Complex<f32>>::new(*rho.index((0,0)), *rho.index((0,1)),*rho.index((1,0)),*rho.index((1,1)));
 
-    let mut system = QubitSystem { hamiltonian, rho };
+    let Hs = cscale4(MINUS_I, tensor_dot(hamiltonian, Operator::identity()) - tensor_dot(Operator::identity(), hamiltonian));
+
+
+    let Ls = tensor_dot(A, A.adjoint())
+        - tensor_dot(Operator::identity().scale(0.5), A*(A.adjoint()))
+        - tensor_dot((A*A.adjoint()).scale(0.5), Operator::identity());
+
+
+    let mut system = QubitSystem { hamiltonian: Hs+gamma*Ls, rho };
 
     for i in 1..1000000 {
-        system.runge_kutta(0.0001);
+        system.runge_kutta(0.001);
         if i % (1<<16) == 0 {
-            println!("Trace: {}", system.rho.trace());
+            println!("Trace: {}", system.rho.x + system.rho.w);
+            println!("rho: {}", system.rho);
         }
     }
 
