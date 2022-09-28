@@ -1,6 +1,7 @@
 use std::{arch, char::ToUppercase, io::Write, ops::Mul};
 
 use nalgebra::*;
+use rand::{thread_rng, Rng};
 
 //type Operator = SMatrix::<f32, 2, 2>;
 type Operator = SMatrix<Complex<f32>, 2, 2>;
@@ -232,8 +233,14 @@ fn ours2() {
         rho,
     };
 
+    let mut rng = thread_rng();
+
+    let eta = 0.5;
+
     for i in 1..1000000 {
         system.runge_kutta(0.001);
+        let dW: f32 = rng.gen();
+
         if i % (1 << 16) == 0 {
             println!("Trace: {}", system.rho.x + system.rho.w);
             println!("rho: {}", system.rho);
@@ -242,7 +249,7 @@ fn ours2() {
 }
 
 fn bloch_sphere(rho: Vector4<Complex<f32>>) -> Vector3<f32> {
-    Vector3::<f32>::new(2.0 * rho.y.re, 2.0 * rho.y.im, 2.0 * rho.x.re - 1.0)
+    Vector3::new(2.0 * rho.y.re, 2.0 * rho.y.im, 2.0 * rho.x.re - 1.0)
 }
 
 fn main() {
