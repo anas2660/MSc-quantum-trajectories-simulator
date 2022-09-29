@@ -1,12 +1,15 @@
+#![allow(non_snake_case)]
+
 use std::{arch, char::ToUppercase, io::Write, ops::Mul};
 
 use nalgebra::*;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, rngs::ThreadRng};
 
 //type Operator = SMatrix::<f32, 2, 2>;
 type Operator = SMatrix<Complex<f32>, 2, 2>;
 //type Dimensions = usize;
 
+const HALF: Complex<f32> = Complex::new(0.5, 0.0);
 const ONE: Complex<f32> = Complex::new(1.0, 0.0);
 const MINUS_ONE: Complex<f32> = Complex::new(-1.0, 0.0);
 const I: Complex<f32> = Complex::new(0.0, 1.0);
@@ -99,14 +102,33 @@ struct QubitSystemPsi {
 }
 
 struct QubitSystem {
-    hamiltonian: SMatrix<Complex<f32>, 4, 4>,
-    rho: Vector4<Complex<f32>>,
+    hamiltonian: Operator,
+    rho: Operator,
     //t: f32
+    measurement: Operator,
+    sqrt_eta: Complex<f32>,
+    c_out_phased: Operator,
+    rng: ThreadRng
+}
+
+#[inline]
+fn commutator(a: Operator, b: Operator) -> Operator {
+    a*b - b*a
+}
+
+#[inline]
+fn anticommutator(a: Operator, b: Operator) -> Operator {
+    a*b + b*a
 }
 
 impl QubitSystem {
-    fn dv(&self, rho: Vector4<Complex<f32>>) -> Vector4<Complex<f32>> {
-        self.hamiltonian * rho
+    fn dv(&mut self, rho: Operator) -> Operator {
+
+
+        let a = self.measurement;
+        cscale(MINUS_I, commutator(self.hamiltonian, rho))
+            + (a*rho*a.adjoint() - cscale(HALF, anticommutator(a.adjoint()*a, rho)))
+        //    + chi_rho*dY
     }
 
     fn runge_kutta(&mut self, dt: f32) {
@@ -204,45 +226,59 @@ fn ours2() {
 
     // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
     // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
-    // let hamiltonian = hamiltonian;
+    // let hamiltonian = hamilt17onian;
     //    - cscale(0.5*I, c_1.ad_mul(&c_1));
     //    - cscale(0.5*I, c_2.ad_mul(&c_2));
 
     let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
 
     let rho = psi.mul(&psi.transpose());
-    let rho = Vector4::<Complex<f32>>::new(
-        *rho.index((0, 0)),
-        *rho.index((0, 1)),
-        *rho.index((1, 0)),
-        *rho.index((1, 1)),
-    );
+    //let rho = Vector4::<Complex<f32>>::new(
+    //    *rho.index((0, 0)),
+    //    *rho.index((0, 1)),
+    //    *rho.index((1, 0)),
+    //    *rho.index((1, 1)),
+    //);
 
-    let Hs = cscale4(
-        MINUS_I,
-        tensor_dot(hamiltonian, Operator::identity())
-            - tensor_dot(Operator::identity(), hamiltonian),
-    );
+    //let hamiltonian = cscale(MINUS_I, hamiltonian);
+    let c_out = cscale((kappa_1*2.0).sqrt()*ONE, alpha - cscale(I * g / (kappa + I*ddelta), sigma_minus));
 
-    let Ls = tensor_dot(A, A.adjoint())
-        - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
-        - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
+
+    //let Ls = tensor_dot(A, A.adjoint())
+    //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
+    //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
+
+    let eta = 0.5*ONE;
+    let Phi = 0.0;
 
     let mut system = QubitSystem {
-        hamiltonian: Hs + gamma * Ls,
+        hamiltonian,
         rho,
+        measurement: A,
+        sqrt_eta: eta.sqrt(),
+        c_out_phased: c_out*((I*Phi).exp()),
+        rng: thread_rng()
     };
 
-    let mut rng = thread_rng();
-
-    let eta = 0.5;
-
     for i in 1..1000000 {
-        system.runge_kutta(0.001);
-        let dW: f32 = rng.gen();
+        system.runge_kutta(0.0001);
+
+        let dW: f32 = (system.rng.gen::<f32>()*2.0-1.0)*0.0001;
+
+        let chi_rho = cscale(system.sqrt_eta, system.c_out_phased*system.rho + system.rho*system.c_out_phased.adjoint());
+        let dY = chi_rho.trace()*0.0001 + dW;
+
+        system.rho += cscale(0.0001*ONE, chi_rho*dY);
+        //dbg!(dW);
+        //dbg!(chi_rho);
+        //dbg!(dY);
+        //dbg!(chi_rho.trace());
+        if dY.real().is_nan() {
+            panic!();
+        }
 
         if i % (1 << 16) == 0 {
-            println!("Trace: {}", system.rho.x + system.rho.w);
+            println!("Trace: {}", system.rho.trace());
             println!("rho: {}", system.rho);
         }
     }
