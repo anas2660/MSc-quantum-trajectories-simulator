@@ -295,9 +295,9 @@ fn ours2() {
 
 fn bloch_sphere(rho: Operator) -> Vector3<f32> {
     Vector3::new(
-        2.0 * rho.index((1, 0)).re,
-        2.0 * rho.index((1, 0)).im,
-        2.0 * rho.index((0, 0)).re - 1.0,
+        rho.index((0, 1)).re + rho.index((1, 0)).re,
+        rho.index((0, 1)).im - rho.index((1, 0)).im,
+        rho.index((0, 0)).re - rho.index((1, 1)).re,
     )
 }
 
