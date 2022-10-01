@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 
-use std::{arch, char::ToUppercase, io::Write, ops::Mul};
+use rand_distr::StandardNormal;
+use std::ops::Mul;
 
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -16,6 +18,8 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
+const dt: f32 = 0.0001;
+
 /*
 #[allow(non_upper_case_globals)]
 const sigma_x: Operator = Operator::new(
@@ -28,14 +32,13 @@ const sigma_y: Operator = Operator::new(
     ZERO, MINUS_I,
        I, ZERO
 );
-*/
-#[allow(non_upper_case_globals)]
+ */
+
+// #[allow(non_upper_case_globals)]
+// #[allow(non_upper_case_globals)]
+// #[allow(non_upper_case_globals)]
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
-
-#[allow(non_upper_case_globals)]
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
-
-#[allow(non_upper_case_globals)]
 const sigma_minus: Operator = Operator::new(ZERO, ZERO, ONE, ZERO);
 
 // From qutip implementation
@@ -109,6 +112,7 @@ struct QubitSystem {
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
     rng: ThreadRng,
+    dW: f32,
 }
 
 #[inline]
@@ -123,17 +127,23 @@ fn anticommutator(a: Operator, b: Operator) -> Operator {
 
 impl QubitSystem {
     fn dv(&mut self, rho: Operator) -> Operator {
+        let chi_rho = cscale(
+            self.sqrt_eta,
+            self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
+        );
+        let dY = chi_rho.trace() + self.dW;
+
         let a = self.measurement;
         cscale(MINUS_I, commutator(self.hamiltonian, rho))
             + (a * rho * a.adjoint() - cscale(HALF, anticommutator(a.adjoint() * a, rho)))
-        //    + chi_rho*dY
+            + chi_rho * dY
     }
 
-    fn runge_kutta(&mut self, dt: f32) {
-        let k_0 = self.dv(self.rho).scale(dt);
-        let k_1 = self.dv(self.rho + k_0.scale(0.5)).scale(dt);
-        let k_2 = self.dv(self.rho + k_1.scale(0.5)).scale(dt);
-        let k_3 = self.dv(self.rho + k_2).scale(dt);
+    fn runge_kutta(&mut self, time_step: f32) {
+        let k_0 = self.dv(self.rho).scale(time_step);
+        let k_1 = self.dv(self.rho + k_0.scale(0.5)).scale(time_step);
+        let k_2 = self.dv(self.rho + k_1.scale(0.5)).scale(time_step);
+        let k_3 = self.dv(self.rho + k_2).scale(time_step);
         self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0 / 3.0);
     }
 }
@@ -258,24 +268,21 @@ fn ours2() {
         sqrt_eta: eta.sqrt(),
         c_out_phased: c_out * ((I * Phi).exp()),
         rng: thread_rng(),
+        dW: 0.0,
     };
 
     for i in 1..1000000 {
-        const dt: f32 = 0.0001;
+        system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
 
-        system.runge_kutta(0.0001);
+        system.runge_kutta(dt);
+        //system.rho += cscale(dt*ONE, chi_rho*dY);
 
-        let dW: f32 = (system.rng.gen::<f32>() * 2.0 - 1.0) * 0.0001;
+        // Normalize
+        let trace = system.rho.trace();
+        system.rho = cscale(1.0 / trace, system.rho);
 
-        let chi_rho = cscale(
-            system.sqrt_eta,
-            system.c_out_phased * system.rho + system.rho * system.c_out_phased.adjoint(),
-        );
-        let dY = chi_rho.trace() * 0.0001 + dW;
-
-        system.rho += cscale(0.0001 * ONE, chi_rho * dY);
-
-        if dY.real().is_nan() {
+        if system.rho[0].real().is_nan() {
+            println!("{}", system.rho[0]);
             panic!();
         }
 
