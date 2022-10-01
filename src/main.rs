@@ -2,7 +2,7 @@
 #![allow(non_upper_case_globals)]
 
 use rand_distr::StandardNormal;
-use std::ops::Mul;
+use std::{ops::Mul, os::unix::prelude::OpenOptionsExt, io::Write};
 
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -271,7 +271,9 @@ fn ours2() {
         dW: 0.0,
     };
 
-    for i in 1..1000000 {
+    //let mut pipe = std::fs::File::options().write(true).read(false).open("/tmp/blochrender_pipe").unwrap();
+
+    for i in 0..1000000 {
         system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
 
         system.runge_kutta(dt);
@@ -281,10 +283,14 @@ fn ours2() {
         let trace = system.rho.trace();
         system.rho = cscale(1.0 / trace, system.rho);
 
-        if system.rho[0].real().is_nan() {
-            println!("{}", system.rho[0]);
-            panic!();
-        }
+        //let buf_data = system.rho.data.as_slice().as_ptr() as *const u8;
+        //let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Operator>()) };
+        //pipe.write(buf).unwrap();
+
+        //if system.rho[0].real().is_nan() {
+        //    println!("{}", system.rho[0]);
+        //    panic!();
+        //}
 
         if i % (1 << 16) == 0 {
             println!("Trace: {}", system.rho.trace());
