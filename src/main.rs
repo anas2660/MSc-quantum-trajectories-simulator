@@ -5,7 +5,7 @@ use rand_distr::StandardNormal;
 use std::{ops::Mul, os::unix::prelude::OpenOptionsExt, io::Write};
 
 use nalgebra::*;
-use rand::{thread_rng, Rng, rngs::ThreadRng};
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 //type Operator = SMatrix::<f32, 2, 2>;
 type Operator = SMatrix<Complex<f32>, 2, 2>;
@@ -19,7 +19,6 @@ const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
 const dt: f32 = 0.0001;
-
 
 /*
 #[allow(non_upper_case_globals)]
@@ -35,14 +34,12 @@ const sigma_y: Operator = Operator::new(
 );
  */
 
-
 // #[allow(non_upper_case_globals)]
 // #[allow(non_upper_case_globals)]
 // #[allow(non_upper_case_globals)]
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
 const sigma_minus: Operator = Operator::new(ZERO, ZERO, ONE, ZERO);
-
 
 // From qutip implementation
 macro_rules! lowering {
@@ -115,28 +112,31 @@ struct QubitSystem {
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
     rng: ThreadRng,
-    dW: f32
+    dW: f32,
 }
 
 #[inline]
 fn commutator(a: Operator, b: Operator) -> Operator {
-    a*b - b*a
+    a * b - b * a
 }
 
 #[inline]
 fn anticommutator(a: Operator, b: Operator) -> Operator {
-    a*b + b*a
+    a * b + b * a
 }
 
 impl QubitSystem {
     fn dv(&mut self, rho: Operator) -> Operator {
-        let chi_rho = cscale(self.sqrt_eta, self.c_out_phased*self.rho + self.rho*self.c_out_phased.adjoint());
+        let chi_rho = cscale(
+            self.sqrt_eta,
+            self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
+        );
         let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
         cscale(MINUS_I, commutator(self.hamiltonian, rho))
-            + (a*rho*a.adjoint() - cscale(HALF, anticommutator(a.adjoint()*a, rho)))
-            + chi_rho*dY
+            + (a * rho * a.adjoint() - cscale(HALF, anticommutator(a.adjoint() * a, rho)))
+            + chi_rho * dY
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
@@ -249,14 +249,16 @@ fn ours2() {
     //);
 
     //let hamiltonian = cscale(MINUS_I, hamiltonian);
-    let c_out = cscale((kappa_1*2.0).sqrt()*ONE, alpha - cscale(I * g / (kappa + I*ddelta), sigma_minus));
-
+    let c_out = cscale(
+        (kappa_1 * 2.0).sqrt() * ONE,
+        alpha - cscale(I * g / (kappa + I * ddelta), sigma_minus),
+    );
 
     //let Ls = tensor_dot(A, A.adjoint())
     //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
     //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-    let eta = 0.5*ONE;
+    let eta = 0.5 * ONE;
     let Phi = 0.0;
 
     let mut system = QubitSystem {
@@ -264,9 +266,9 @@ fn ours2() {
         rho,
         measurement: A,
         sqrt_eta: eta.sqrt(),
-        c_out_phased: c_out*((I*Phi).exp()),
+        c_out_phased: c_out * ((I * Phi).exp()),
         rng: thread_rng(),
-        dW: 0.0
+        dW: 0.0,
     };
 
     //let mut pipe = std::fs::File::options().write(true).read(false).open("/tmp/blochrender_pipe").unwrap();
@@ -279,7 +281,7 @@ fn ours2() {
 
         // Normalize
         let trace = system.rho.trace();
-        system.rho = cscale(1.0/trace, system.rho);
+        system.rho = cscale(1.0 / trace, system.rho);
 
         //let buf_data = system.rho.data.as_slice().as_ptr() as *const u8;
         //let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Operator>()) };
@@ -297,8 +299,12 @@ fn ours2() {
     }
 }
 
-fn bloch_sphere(rho: Vector4<Complex<f32>>) -> Vector3<f32> {
-    Vector3::new(2.0 * rho.y.re, 2.0 * rho.y.im, 2.0 * rho.x.re - 1.0)
+fn bloch_sphere(rho: Operator) -> Vector3<f32> {
+    Vector3::new(
+        2.0 * rho.index((1, 0)).re,
+        2.0 * rho.index((1, 0)).im,
+        2.0 * rho.index((0, 0)).re - 1.0,
+    )
 }
 
 fn main() {
