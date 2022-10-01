@@ -3,7 +3,7 @@
 use std::{arch, char::ToUppercase, io::Write, ops::Mul};
 
 use nalgebra::*;
-use rand::{thread_rng, Rng, rngs::ThreadRng};
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 //type Operator = SMatrix::<f32, 2, 2>;
 type Operator = SMatrix<Complex<f32>, 2, 2>;
@@ -108,26 +108,24 @@ struct QubitSystem {
     measurement: Operator,
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 #[inline]
 fn commutator(a: Operator, b: Operator) -> Operator {
-    a*b - b*a
+    a * b - b * a
 }
 
 #[inline]
 fn anticommutator(a: Operator, b: Operator) -> Operator {
-    a*b + b*a
+    a * b + b * a
 }
 
 impl QubitSystem {
     fn dv(&mut self, rho: Operator) -> Operator {
-
-
         let a = self.measurement;
         cscale(MINUS_I, commutator(self.hamiltonian, rho))
-            + (a*rho*a.adjoint() - cscale(HALF, anticommutator(a.adjoint()*a, rho)))
+            + (a * rho * a.adjoint() - cscale(HALF, anticommutator(a.adjoint() * a, rho)))
         //    + chi_rho*dY
     }
 
@@ -241,14 +239,16 @@ fn ours2() {
     //);
 
     //let hamiltonian = cscale(MINUS_I, hamiltonian);
-    let c_out = cscale((kappa_1*2.0).sqrt()*ONE, alpha - cscale(I * g / (kappa + I*ddelta), sigma_minus));
-
+    let c_out = cscale(
+        (kappa_1 * 2.0).sqrt() * ONE,
+        alpha - cscale(I * g / (kappa + I * ddelta), sigma_minus),
+    );
 
     //let Ls = tensor_dot(A, A.adjoint())
     //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
     //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-    let eta = 0.5*ONE;
+    let eta = 0.5 * ONE;
     let Phi = 0.0;
 
     let mut system = QubitSystem {
@@ -256,23 +256,25 @@ fn ours2() {
         rho,
         measurement: A,
         sqrt_eta: eta.sqrt(),
-        c_out_phased: c_out*((I*Phi).exp()),
-        rng: thread_rng()
+        c_out_phased: c_out * ((I * Phi).exp()),
+        rng: thread_rng(),
     };
 
     for i in 1..1000000 {
+        const dt: f32 = 0.0001;
+
         system.runge_kutta(0.0001);
 
-        let dW: f32 = (system.rng.gen::<f32>()*2.0-1.0)*0.0001;
+        let dW: f32 = (system.rng.gen::<f32>() * 2.0 - 1.0) * 0.0001;
 
-        let chi_rho = cscale(system.sqrt_eta, system.c_out_phased*system.rho + system.rho*system.c_out_phased.adjoint());
-        let dY = chi_rho.trace()*0.0001 + dW;
+        let chi_rho = cscale(
+            system.sqrt_eta,
+            system.c_out_phased * system.rho + system.rho * system.c_out_phased.adjoint(),
+        );
+        let dY = chi_rho.trace() * 0.0001 + dW;
 
-        system.rho += cscale(0.0001*ONE, chi_rho*dY);
-        //dbg!(dW);
-        //dbg!(chi_rho);
-        //dbg!(dY);
-        //dbg!(chi_rho.trace());
+        system.rho += cscale(0.0001 * ONE, chi_rho * dY);
+
         if dY.real().is_nan() {
             panic!();
         }
@@ -284,8 +286,12 @@ fn ours2() {
     }
 }
 
-fn bloch_sphere(rho: Vector4<Complex<f32>>) -> Vector3<f32> {
-    Vector3::new(2.0 * rho.y.re, 2.0 * rho.y.im, 2.0 * rho.x.re - 1.0)
+fn bloch_sphere(rho: Operator) -> Vector3<f32> {
+    Vector3::new(
+        2.0 * rho.index((1, 0)).re,
+        2.0 * rho.index((1, 0)).im,
+        2.0 * rho.index((0, 0)).re - 1.0,
+    )
 }
 
 fn main() {
