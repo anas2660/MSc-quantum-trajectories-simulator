@@ -271,21 +271,22 @@ fn ours2() {
         dW: 0.0,
     };
 
-    //let mut pipe = std::fs::File::options().write(true).read(false).open("/tmp/blochrender_pipe").unwrap();
+    let mut pipe = std::fs::File::options().write(true).read(false).open("/tmp/blochrender_pipe").unwrap();
 
-    for i in 0..1000000 {
+    for i in 0..100000 {
         system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
 
         system.runge_kutta(dt);
         //system.rho += cscale(dt*ONE, chi_rho*dY);
 
         // Normalize
-        let trace = system.rho.trace();
-        system.rho = cscale(1.0 / trace, system.rho);
+        system.rho = cscale(1.0 / system.rho.trace(), system.rho);
 
-        //let buf_data = system.rho.data.as_slice().as_ptr() as *const u8;
-        //let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Operator>()) };
-        //pipe.write(buf).unwrap();
+        if i % 10 == 0 {
+            let buf_data = bloch_sphere(system.rho).data.as_slice().as_ptr() as *const u8;
+            let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>()) };
+            pipe.write(buf).unwrap();
+        }
 
         //if system.rho[0].real().is_nan() {
         //    println!("{}", system.rho[0]);
@@ -308,8 +309,6 @@ fn bloch_sphere(rho: Operator) -> Vector3<f32> {
 }
 
 fn main() {
-    let _v = Vector2::from_element(1.0f32);
-
     println!("Reference (Qutip) --------");
     reference();
 
