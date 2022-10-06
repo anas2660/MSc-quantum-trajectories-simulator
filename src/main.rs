@@ -2,7 +2,7 @@
 #![allow(non_upper_case_globals)]
 
 use rand_distr::StandardNormal;
-use std::{ops::Mul, os::unix::prelude::OpenOptionsExt, io::Write};
+use std::{ops::Mul, io::Write};
 
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -18,7 +18,7 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.0001;
+const dt: f32 = 0.01;
 
 /*
 #[allow(non_upper_case_globals)]
@@ -210,6 +210,41 @@ fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<Complex<f32>, 4, 4> {
     m1.kronecker(&m2.transpose())
 }
 
+enum PipeWriter {
+    NotOpened,
+    Opened(std::fs::File),
+}
+
+
+impl PipeWriter {
+    fn open(path: &str) -> Self {
+        if std::fs::metadata(path).is_ok() {
+            Self::Opened(std::fs::File::options().write(true).read(false).open(path).unwrap())
+        } else {
+            Self::NotOpened
+        }
+    }
+
+    fn write(&mut self, vec: Vector3<f32>) {
+        match self {
+            PipeWriter::Opened(pipe) => {
+                let buf_data = vec.data.as_slice().as_ptr() as *const u8;
+                let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>()) };
+                pipe.write(buf).unwrap();
+            },
+            PipeWriter::NotOpened => (),
+        }
+    }
+    fn is_opened(&self) -> bool {
+        match self {
+            PipeWriter::NotOpened => false,
+            PipeWriter::Opened(_) => true,
+        }
+    }
+}
+
+
+
 fn ours2() {
     let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
     let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
@@ -231,6 +266,9 @@ fn ours2() {
         - cscale(epsilon_s, sigma_plus * sigma_minus);
 
     let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
+
+    let eta = 0.5 * ONE;
+    let Phi = 0.0;
 
     // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
     // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
@@ -258,8 +296,6 @@ fn ours2() {
     //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
     //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-    let eta = 0.5 * ONE;
-    let Phi = 0.0;
 
     let mut system = QubitSystem {
         hamiltonian,
@@ -271,37 +307,31 @@ fn ours2() {
         dW: 0.0,
     };
 
-    //let mut pipe = std::fs::File::options().write(true).read(false).open("/tmp/blochrender_pipe").unwrap();
 
-    for i in 0..100000 {
+    let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
+
+    for i in 0..10000 {
         system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
-
         system.runge_kutta(dt);
-        //system.rho += cscale(dt*ONE, chi_rho*dY);
 
         // Normalize
         system.rho = cscale(1.0 / system.rho.trace(), system.rho);
 
-        //if i % 10 == 0 {
-        //    let buf_data = bloch_sphere(system.rho).data.as_slice().as_ptr() as *const u8;
-        //    let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>()) };
-        //    pipe.write(buf).unwrap();
-        //}
+        if pipe.is_opened() { pipe.write(bloch_vector(system.rho)); }
 
+        // Bloch v-O1ector magnitude test
+        //let mag = bloch_vector(system.rho).magnitude();
+        //let eigenvalues = system.rho.eigenvalues().unwrap();
+        //assert!(((2.0 * eigenvalues[0].re - 1.0) - mag).abs() < 0.01, "Bloch vector magnitude was wrong.");
 
-        //if system.rho[0].real().is_nan() {
-        //    println!("{}", system.rho[0]);
-        //    panic!();
-        //}
-
-        if i % (1 << 16) == 0 {
+        if i % (1 << 12) == 0 {
             println!("Trace: {}", system.rho.trace());
             println!("rho: {}", system.rho);
         }
     }
 }
 
-fn bloch_sphere(rho: Operator) -> Vector3<f32> {
+fn bloch_vector(rho: Operator) -> Vector3<f32> {
     Vector3::new(
         rho.index((0, 1)).re + rho.index((1, 0)).re,
         rho.index((0, 1)).im - rho.index((1, 0)).im,
