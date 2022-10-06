@@ -2,7 +2,7 @@
 #![allow(non_upper_case_globals)]
 
 use rand_distr::StandardNormal;
-use std::{ops::Mul, io::Write};
+use std::{io::Write, ops::Mul};
 
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -18,25 +18,8 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.01;
+const dt: f32 = 0.001;
 
-/*
-#[allow(non_upper_case_globals)]
-const sigma_x: Operator = Operator::new(
-    0.0, 1.0,
-    1.0, 0.0
-);
-
-#[allow(non_upper_case_globals)]
-const sigma_y: Operator = Operator::new(
-    ZERO, MINUS_I,
-       I, ZERO
-);
- */
-
-// #[allow(non_upper_case_globals)]
-// #[allow(non_upper_case_globals)]
-// #[allow(non_upper_case_globals)]
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
 const sigma_minus: Operator = Operator::new(ZERO, ZERO, ONE, ZERO);
@@ -45,12 +28,7 @@ const sigma_minus: Operator = Operator::new(ZERO, ZERO, ONE, ZERO);
 macro_rules! lowering {
     ($D:expr) => {
         SMatrix::<f32, $D, $D>::from_fn(|r, c| if r + 1 == c { (c as f32).sqrt() } else { 0.0 })
-    }; // qutip implementation
-       //data = np.sqrt(np.arange(offset+1, N+offset, dtype=complex))
-       //ind = np.arange(1,N, dtype=np.int32)
-       //ptr = np.arange(N+1, dtype=np.int32)
-       //ptr[-1] = N-1
-       //return Qobj(fast_csr_matrix((data,ind,ptr),shape=(N,N)), isherm=False)
+    };
 }
 
 macro_rules! identity {
@@ -63,31 +41,6 @@ macro_rules! eval {
     ($x:expr) => {
         println!("{} = {}", stringify!($x), $x);
     };
-}
-
-fn reference() {
-    //  const N: Dimensions = 10;
-    //let omega_a = 1.0;
-    //let omega_c = 1.25;
-    //let g = 0.05;
-    //
-    //    let a  = identity!(2).kronecker(&lowering!(N));
-    //    let sm = lowering!(2).kronecker(&identity!(N));
-    //    let sz = sigma_z.kronecker(&identity!(N));
-    //
-    //    let hamiltonian =
-    //        0.5 * omega_a * sz +
-    //        omega_c * a.adjoint() * a +
-    //        g * (a.adjoint()*sm + a*sm.adjoint());
-    //
-    //
-    //    eval!(hamiltonian);
-    //    eval!(sigma_z);
-    //    eval!(hamiltonian.eigenvalues().unwrap());
-    //    eval!(a);
-    //    eval!(sm);
-    //    eval!(sz);
-    //    eval!(hamiltonian);
 }
 
 fn cscale(c: Complex<f32>, m: Operator) -> Operator {
@@ -108,10 +61,13 @@ struct QubitSystem {
     hamiltonian: Operator,
     rho: Operator,
     //t: f32
-    measurement: Operator,
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
     rng: ThreadRng,
+    measurement: Operator,
+    c1: Operator,
+    c2: Operator,
+    c3: Operator,
     dW: f32,
 }
 
@@ -125,7 +81,17 @@ fn anticommutator(a: Operator, b: Operator) -> Operator {
     a * b + b * a
 }
 
+#[inline]
+fn half(operator: Operator) -> Operator {
+    cscale(HALF, operator)
+}
+
 impl QubitSystem {
+    fn lindblad(&self, operator: Operator) -> Operator {
+        operator * self.rho * operator.adjoint()
+            - half(anticommutator(operator.adjoint() * operator, self.rho))
+    }
+
     fn dv(&mut self, rho: Operator) -> Operator {
         let chi_rho = cscale(
             self.sqrt_eta,
@@ -135,7 +101,10 @@ impl QubitSystem {
 
         let a = self.measurement;
         cscale(MINUS_I, commutator(self.hamiltonian, rho))
-            + (a * rho * a.adjoint() - cscale(HALF, anticommutator(a.adjoint() * a, rho)))
+            + self.lindblad(a)
+            + self.lindblad(self.c1)
+            + self.lindblad(self.c2)
+            + self.lindblad(self.c3)
             + chi_rho * dY
     }
 
@@ -148,80 +117,27 @@ impl QubitSystem {
     }
 }
 
-//fn euler_integration(system: QubitSystem, dt: f32) -> QubitSystem {
-//    let mut result = system;
-//    result.psi += result.dv(0.0, result.psi).scale(dt);
-//    result
-//}
-
-fn ours() {
-    /*
-    let delta_s = ONE;
-    let g = ONE;////ONE*0.65;
-    let kappa_1 = 1.0;
-    let kappa = 0.1;
-    let beta = Operator::identity();
-    let delta_r = 1.0;
-
-    let alpha =
-        cscale((2.0*kappa_1).sqrt()/(kappa+I*delta_r), beta);
-
-    let ddelta = delta_r - delta_s;
-    let epsilon_s = g*g * ddelta/(kappa*kappa + ddelta*ddelta);
-
-
-    let hamiltonian =
-        cscale(delta_s*0.5, sigma_z)
-        + cscale(g, alpha*sigma_plus + alpha.conjugate() * sigma_minus)
-        - cscale(epsilon_s, sigma_plus*sigma_minus);
-
-    let gamma_p = 2.0*g*g*kappa/(kappa*kappa + ddelta*ddelta);
-
-    // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
-    // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
-    // let hamiltonian = hamiltonian;
-    //    - cscale(0.5*I, c_1.ad_mul(&c_1));
-    //    - cscale(0.5*I, c_2.ad_mul(&c_2));
-
-    let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
-
-    let mut system = QubitSystem { hamiltonian, psi };
-
-    let mut file = std::fs::File::create("data.csv").unwrap();
-    file.write(b"index, x_real, x_imag, y_real, y_imag, magnitude, magnitude_squared\n").unwrap();
-
-    for i in 0..50000 {
-        let psi = &system.psi;
-        ///////////file.write(format!(
-        ///////////    "{i}, {}, {}, {}, {}, {}, {}\n",
-        ///////////    psi.x.real(), psi.x.imaginary(),
-        ///////////    psi.y.real(), psi.y.imaginary(),
-        ///////////    psi.magnitude(), psi.magnitude_squared()
-        ///////////).as_bytes()).unwrap();
-        //println!("Step {i}, Psi: [{}, {}]", system.psi.x, system.psi.y);
-
-        system = runge_kutta(system, 0.001);
-    }
-
-    */
-}
-
 fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<Complex<f32>, 4, 4> {
     m1.kronecker(&m2.transpose())
 }
 
 enum PipeWriter {
-    NotOpened,
+    Closed,
     Opened(std::fs::File),
 }
-
 
 impl PipeWriter {
     fn open(path: &str) -> Self {
         if std::fs::metadata(path).is_ok() {
-            Self::Opened(std::fs::File::options().write(true).read(false).open(path).unwrap())
+            Self::Opened(
+                std::fs::File::options()
+                    .write(true)
+                    .read(false)
+                    .open(path)
+                    .unwrap(),
+            )
         } else {
-            Self::NotOpened
+            Self::Closed
         }
     }
 
@@ -229,47 +145,74 @@ impl PipeWriter {
         match self {
             PipeWriter::Opened(pipe) => {
                 let buf_data = vec.data.as_slice().as_ptr() as *const u8;
-                let buf = unsafe { std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>()) };
+                let buf = unsafe {
+                    std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>())
+                };
                 pipe.write(buf).unwrap();
-            },
-            PipeWriter::NotOpened => (),
+            }
+            PipeWriter::Closed => (),
         }
     }
     fn is_opened(&self) -> bool {
         match self {
-            PipeWriter::NotOpened => false,
+            PipeWriter::Closed => false,
             PipeWriter::Opened(_) => true,
         }
     }
 }
 
+fn simulate() {
+    let timestamp = std::time::SystemTime::UNIX_EPOCH
+        .elapsed()
+        .unwrap()
+        .as_secs();
 
 
-fn ours2() {
-    let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
+    let mut parameter_file =
+        std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
+    let mut data_file =
+        std::fs::File::create(format!("results/{}_trajectories.csv", timestamp)).unwrap();
+
     let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
 
+    let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
     let delta_s = ONE;
-    let g = ONE * 0.05;
-    let kappa_1 = 1.0;
-    let kappa = 0.1;
+    let g = ONE * 2.0;
+    let kappa_1 = 10.0;
+    let kappa = 10.0;
     let beta = Operator::identity();
-    let delta_r = 1.0;
+    let delta_r = 0.0;
+    let eta = 0.5 * ONE;
+    let Phi = 0.0;
+    let gamma_dec = 1.0;
+    let gamma_phi = 1.0;
+
+    parameter_file.write_all(
+        format!(
+            "let A = {A};
+let beta = {beta};
+let delta_s = {delta_s};
+let delta_r = {delta_r};
+let g = {g};
+let kappa = {kappa};
+let kappa_1 = {kappa_1};
+let eta = {eta};
+let Phi = {Phi};
+let gamma_dec = {gamma_dec};
+let gamma_phi = {gamma_phi};
+"
+        )
+        .as_bytes(),
+    );
 
     let alpha = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta);
-
     let ddelta = delta_r - delta_s;
     let epsilon_s = g * g * ddelta / (kappa * kappa + ddelta * ddelta);
-
     let hamiltonian = cscale(delta_s * 0.5, sigma_z)
         + cscale(g, alpha * sigma_plus + alpha.conjugate() * sigma_minus)
         - cscale(epsilon_s, sigma_plus * sigma_minus);
 
     let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
-
-    let eta = 0.5 * ONE;
-    let Phi = 0.0;
-
     // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
     // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
     // let hamiltonian = hamilt17onian;
@@ -296,19 +239,28 @@ fn ours2() {
     //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
     //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
+    let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
+        - cscale(I * g / (kappa + I * ddelta), sigma_minus);
+    let c1 = cscale(ONE * (2.0 * kappa).sqrt(), a);
+    let c2 = cscale(ONE * gamma_dec.sqrt(), sigma_minus);
+    let c3 = cscale(ONE * (gamma_phi / 2.0).sqrt(), sigma_z);
 
     let mut system = QubitSystem {
         hamiltonian,
         rho,
-        measurement: A,
         sqrt_eta: eta.sqrt(),
         c_out_phased: c_out * ((I * Phi).exp()),
         rng: thread_rng(),
+        measurement: A,
+        c1,
+        c2,
+        c3,
         dW: 0.0,
     };
 
 
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
+
 
     for i in 0..10000 {
         system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
@@ -317,7 +269,9 @@ fn ours2() {
         // Normalize
         system.rho = cscale(1.0 / system.rho.trace(), system.rho);
 
-        if pipe.is_opened() { pipe.write(bloch_vector(system.rho)); }
+        if pipe.is_opened() {
+            pipe.write(bloch_vector(system.rho));
+        }
 
         // Bloch v-O1ector magnitude test
         //let mag = bloch_vector(system.rho).magnitude();
@@ -340,9 +294,6 @@ fn bloch_vector(rho: Operator) -> Vector3<f32> {
 }
 
 fn main() {
-    println!("Reference (Qutip) --------");
-    reference();
-
-    println!("Ours ---------------------",);
-    ours2();
+    println!("Starting simulation...");
+    simulate();
 }
