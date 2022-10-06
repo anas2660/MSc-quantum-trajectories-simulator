@@ -18,7 +18,7 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.001;
+const dt: f32 = 0.005;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
@@ -261,8 +261,10 @@ let gamma_phi = {gamma_phi};
 
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
 
+    //for simulation in 0..100 {}
+    let now = std::time::Instant::now();
 
-    for i in 0..10000 {
+    for i in 0..1000 {
         system.dW = system.rng.sample(StandardNormal); //(self.rng.gen::<f32>()*2.0-1.0)*dt;
         system.runge_kutta(dt);
 
@@ -283,6 +285,8 @@ let gamma_phi = {gamma_phi};
             println!("rho: {}", system.rho);
         }
     }
+
+    println!("Sim time: {} ms", now.elapsed().as_millis());
 }
 
 fn bloch_vector(rho: Operator) -> Vector3<f32> {
