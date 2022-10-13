@@ -17,7 +17,7 @@ HIST_BINS = 125
 
 
 # TODO fix memory leak
-for i in range(0, frame_count, 10):
+for i in range(0, frame_count, 1):
     #gc.collect()
     fig, ax = plt.subplots(tight_layout=True, figsize=(10,4))
     ax.set_ylim((0,100))

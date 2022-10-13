@@ -21,8 +21,8 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.005;
-const STEP_COUNT: u32 = 2000;
+const dt: f32 = 0.0005;
+const STEP_COUNT: u32 = 20000;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
@@ -35,31 +35,19 @@ macro_rules! lowering {
     };
 }
 
-macro_rules! identity {
-    ($D:expr) => {
-        SMatrix::<f32, $D, $D>::identity()
-    };
-}
-
-macro_rules! eval {
-    ($x:expr) => {
-        println!("{} = {}", stringify!($x), $x);
-    };
-}
-
 fn cscale(c: Complex<f32>, m: Operator) -> Operator {
     m.component_mul(&Operator::from_element(c))
 }
 
-fn cscale4(c: Complex<f32>, m: SMatrix<Complex<f32>, 4, 4>) -> SMatrix<Complex<f32>, 4, 4> {
-    m.component_mul(&SMatrix::<Complex<f32>, 4, 4>::from_element(c))
-}
-
-struct QubitSystemPsi {
-    hamiltonian: Operator,
-    psi: Vector2<Complex<f32>>,
-    //t: f32
-}
+// fn cscale4(c: Complex<f32>, m: SMatrix<Complex<f32>, 4, 4>) -> SMatrix<Complex<f32>, 4, 4> {
+//     m.component_mul(&SMatrix::<Complex<f32>, 4, 4>::from_element(c))
+// }
+//
+// struct QubitSystemPsi {
+//     hamiltonian: Operator,
+//     psi: Vector2<Complex<f32>>,
+//     //t: f32
+// }
 
 struct QubitSystem {
     hamiltonian: Operator,
@@ -253,7 +241,7 @@ fn simulate() {
     let kappa = 10.0;
     let beta = Operator::identity();
     let delta_r = 0.0;
-    let eta = 0.99 * ONE;
+    let eta = 0.9 * ONE;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
@@ -305,7 +293,7 @@ let gamma_phi = {gamma_phi};
             system.rho = cscale(1.0 / system.rho.trace(), system.rho);
 
             if pipe.is_opened() {
-                pipe.write_vec3(bloch_vector(system.rho));
+                pipe.write_vec3(bloch_vector(&system.rho));
             }
 
 
@@ -330,11 +318,11 @@ let gamma_phi = {gamma_phi};
     }
 }
 
-fn bloch_vector(rho: Operator) -> Vector3<f32> {
+fn bloch_vector(rho: &Operator) -> Vector3<f32> {
     Vector3::new(
-        rho.index((0, 1)).re + rho.index((1, 0)).re,
-        rho.index((0, 1)).im - rho.index((1, 0)).im,
-        rho.index((0, 0)).re - rho.index((1, 1)).re,
+        rho[(0, 1)].re + rho[(1, 0)].re,
+        rho[(0, 1)].im - rho[(1, 0)].im,
+        rho[(0, 0)].re - rho[(1, 1)].re,
     )
 }
 
