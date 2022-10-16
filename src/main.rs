@@ -24,7 +24,7 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.0005;
+const dt: f32 = 0.005;
 const STEP_COUNT: u32 = 20000;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
@@ -45,12 +45,6 @@ fn cscale(c: Complex<f32>, m: Operator) -> Operator {
 // fn cscale4(c: Complex<f32>, m: SMatrix<Complex<f32>, 4, 4>) -> SMatrix<Complex<f32>, 4, 4> {
 //     m.component_mul(&SMatrix::<Complex<f32>, 4, 4>::from_element(c))
 // }
-//
-// struct QubitSystemPsi {
-//     hamiltonian: Operator,
-//     psi: Vector2<Complex<f32>>,
-//     //t: f32
-// }
 
 struct QubitSystem {
     hamiltonian: Operator,
@@ -58,6 +52,7 @@ struct QubitSystem {
     //t: f32
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
+    d_chi_rho: Operator,
     rng: ThreadRng,
     measurement: Operator,
     c1: Operator,
@@ -135,17 +130,25 @@ impl QubitSystem {
         let c2 = cscale(ONE * gamma_dec.sqrt(), sigma_minus);
         let c3 = cscale(ONE * (gamma_phi / 2.0).sqrt(), sigma_z);
 
+        let sqrt_eta = eta.sqrt();
+        let c_out_phased = c_out * ((I * Phi).exp());
+        let d_chi_rho = cscale(
+            sqrt_eta,
+            c_out_phased + c_out_phased.adjoint(),
+        );
+
         Self {
             hamiltonian,
             rho,
-            sqrt_eta: eta.sqrt(),
-            c_out_phased: c_out * ((I * Phi).exp()),
+            sqrt_eta,
+            c_out_phased,
+            d_chi_rho,
             rng: thread_rng(),
             measurement: A,
             c1,
             c2,
             c3,
-            dW: 0.0,
+            dW: 0.0
         }
     }
 
@@ -159,6 +162,7 @@ impl QubitSystem {
             self.sqrt_eta,
             self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
         );
+
         let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
@@ -168,6 +172,7 @@ impl QubitSystem {
             + self.lindblad(self.c2)
             + self.lindblad(self.c3)
             + chi_rho * dY
+            + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5)
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
