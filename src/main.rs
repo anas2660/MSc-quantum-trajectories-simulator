@@ -82,9 +82,19 @@ fn half(operator: Operator) -> Operator {
 }
 
 impl QubitSystem {
-    fn new(A: Operator, delta_s: cf32, g: cf32, kappa_1: f32,
-           kappa: f32, beta: Operator, delta_r: f32, eta: cf32,
-           Phi: f32, gamma_dec: f32, gamma_phi: f32) -> Self {
+    fn new(
+        A: Operator,
+        delta_s: cf32,
+        g: cf32,
+        kappa_1: f32,
+        kappa: f32,
+        beta: Operator,
+        delta_r: f32,
+        eta: cf32,
+        Phi: f32,
+        gamma_dec: f32,
+        gamma_phi: f32,
+    ) -> Self {
         let alpha = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta);
         let ddelta = delta_r - delta_s;
         let epsilon_s = g * g * ddelta / (kappa * kappa + ddelta * ddelta);
@@ -179,7 +189,6 @@ fn simulate() {
         .unwrap()
         .as_secs();
 
-
     let mut parameter_file =
         std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
     let mut data_file =
@@ -199,9 +208,10 @@ fn simulate() {
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
 
-    parameter_file.write_all(
-        format!(
-            "let A = {A};
+    parameter_file
+        .write_all(
+            format!(
+                "let A = {A};
 let beta = {beta};
 let delta_s = {delta_s};
 let delta_r = {delta_r};
@@ -213,9 +223,10 @@ let Phi = {Phi};
 let gamma_dec = {gamma_dec};
 let gamma_phi = {gamma_phi};
 "
+            )
+            .as_bytes(),
         )
-        .as_bytes(),
-    ).unwrap();
+        .unwrap();
 
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
     pipe.write_u32(STEP_COUNT);
@@ -223,8 +234,7 @@ let gamma_phi = {gamma_phi};
     for simulation in 0..1000 {
         // Initialize system
         let mut system = QubitSystem::new(
-            A, delta_s, g, kappa_1, kappa, beta,
-            delta_r, eta, Phi, gamma_dec, gamma_phi
+            A, delta_s, g, kappa_1, kappa, beta, delta_r, eta, Phi, gamma_dec, gamma_phi,
         );
 
         // Start the timer.
@@ -232,9 +242,10 @@ let gamma_phi = {gamma_phi};
 
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
-
             // Write current state.
-            data_file.write(format!("{}, ", system.rho[(0,0)].re).as_bytes()).unwrap();
+            data_file
+                .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
+                .unwrap();
 
             // Sample on the normal distribution.
             system.dW = system.rng.sample(StandardNormal);
@@ -248,8 +259,6 @@ let gamma_phi = {gamma_phi};
             if pipe.is_opened() {
                 pipe.write_vec3(bloch_vector(&system.rho));
             }
-
-
 
             // Bloch v-O1ector magnitude test
             //let mag = bloch_vector(system.rho).magnitude();
@@ -265,9 +274,13 @@ let gamma_phi = {gamma_phi};
         println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
 
         // Write last state.
-        data_file.write(format!("{}\n", system.rho[(0,0)].re).as_bytes()).unwrap();
+        data_file
+            .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+            .unwrap();
 
-        if pipe.is_opened() { break; }
+        if pipe.is_opened() {
+            break;
+        }
     }
 }
 
