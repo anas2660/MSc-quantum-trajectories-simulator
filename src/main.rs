@@ -69,6 +69,7 @@ struct QubitSystem {
     c2: Operator,
     c3: Operator,
     dW: f32,
+    dt: f32,
 }
 
 #[inline]
@@ -97,6 +98,10 @@ impl QubitSystem {
             self.sqrt_eta,
             self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
         );
+        let d_chi_rho = cscale(
+            self.sqrt_eta,
+            self.c_out_phased + self.c_out_phased.adjoint(),
+        );
         let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
@@ -106,6 +111,7 @@ impl QubitSystem {
             + self.lindblad(self.c2)
             + self.lindblad(self.c3)
             + chi_rho * dY
+            + chi_rho * d_chi_rho.scale((self.dW * self.dW * self.dt - 1.0) * 0.5)
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
@@ -166,7 +172,6 @@ fn simulate() {
         .elapsed()
         .unwrap()
         .as_secs();
-
 
     let mut parameter_file =
         std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
@@ -256,8 +261,8 @@ let gamma_phi = {gamma_phi};
         c2,
         c3,
         dW: 0.0,
+        dt: dt,
     };
-
 
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
 
