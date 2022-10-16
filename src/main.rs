@@ -7,6 +7,9 @@ use std::{io::Write, ops::Mul};
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
+mod pipewriter;
+use pipewriter::*;
+
 //type Operator = SMatrix::<f32, 2, 2>;
 type Operator = SMatrix<Complex<f32>, 2, 2>;
 //type Dimensions = usize;
@@ -168,56 +171,6 @@ impl QubitSystem {
 
 fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<Complex<f32>, 4, 4> {
     m1.kronecker(&m2.transpose())
-}
-
-enum PipeWriter {
-    Closed,
-    Opened(std::fs::File),
-}
-
-impl PipeWriter {
-    fn open(path: &str) -> Self {
-        if std::fs::metadata(path).is_ok() {
-            Self::Opened(
-                std::fs::File::options()
-                    .write(true)
-                    .read(false)
-                    .open(path)
-                    .unwrap(),
-            )
-        } else {
-            Self::Closed
-        }
-    }
-
-    fn write_vec3(&mut self, vec: Vector3<f32>) {
-        match self {
-            PipeWriter::Opened(pipe) => {
-                let buf_data = vec.data.as_slice().as_ptr() as *const u8;
-                let buf = unsafe {
-                    std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>())
-                };
-                pipe.write(buf).unwrap();
-            }
-            PipeWriter::Closed => (),
-        }
-    }
-
-    fn write_u32(&mut self, number: u32) {
-        match self {
-            PipeWriter::Opened(pipe) => {
-                pipe.write(&number.to_le_bytes()).unwrap();
-            }
-            PipeWriter::Closed => (),
-        }
-    }
-
-    fn is_opened(&self) -> bool {
-        match self {
-            PipeWriter::Closed => false,
-            PipeWriter::Opened(_) => true,
-        }
-    }
 }
 
 fn simulate() {
