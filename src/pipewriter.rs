@@ -8,6 +8,10 @@ pub enum PipeWriter {
 
 impl PipeWriter {
     pub fn open(path: &str) -> Self {
+        if cfg!(windows) {
+            return Self::Closed;
+        }
+
         if std::fs::metadata(path).is_ok() {
             Self::Opened(
                 std::fs::File::options()
