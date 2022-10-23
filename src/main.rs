@@ -24,8 +24,8 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.005;
-const STEP_COUNT: u32 = 20000;
+const dt: f32 = 0.00002;
+const STEP_COUNT: u32 = 1000000;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
@@ -172,7 +172,7 @@ impl QubitSystem {
             + self.lindblad(self.c2)
             + self.lindblad(self.c3)
             + chi_rho * dY
-            + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5)
+            // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
@@ -253,7 +253,7 @@ let gamma_phi = {gamma_phi};
                 .unwrap();
 
             // Sample on the normal distribution.
-            system.dW = system.rng.sample(StandardNormal);
+            system.dW = system.rng.sample::<f32, StandardNormal>(StandardNormal)/dt.sqrt();
 
             // Do the runge-kutta4 step.
             system.runge_kutta(dt);
