@@ -49,6 +49,7 @@ fn cscale(c: Complex<f32>, m: Operator) -> Operator {
 struct QubitSystem {
     hamiltonian: Operator,
     rho: Operator,
+    Y: Complex<f32>,
     //t: f32
     sqrt_eta: Complex<f32>,
     c_out_phased: Operator,
@@ -132,14 +133,12 @@ impl QubitSystem {
 
         let sqrt_eta = eta.sqrt();
         let c_out_phased = c_out * ((I * Phi).exp());
-        let d_chi_rho = cscale(
-            sqrt_eta,
-            c_out_phased + c_out_phased.adjoint(),
-        );
+        let d_chi_rho = cscale(sqrt_eta, c_out_phased + c_out_phased.adjoint());
 
         Self {
             hamiltonian,
             rho,
+            Y: ZERO,
             sqrt_eta,
             c_out_phased,
             d_chi_rho,
@@ -148,7 +147,7 @@ impl QubitSystem {
             c1,
             c2,
             c3,
-            dW: 0.0
+            dW: 0.0,
         }
     }
 
@@ -157,7 +156,7 @@ impl QubitSystem {
             - half(anticommutator(operator.adjoint() * operator, self.rho))
     }
 
-    fn dv(&mut self, rho: Operator) -> Operator {
+    fn dv(&mut self, rho: Operator) -> (Operator, Complex<f32>) {
         let chi_rho = cscale(
             self.sqrt_eta,
             self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
@@ -166,21 +165,26 @@ impl QubitSystem {
         let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
-        cscale(MINUS_I, commutator(self.hamiltonian, rho))
-            + self.lindblad(a)
-            + self.lindblad(self.c1)
-            + self.lindblad(self.c2)
-            + self.lindblad(self.c3)
-            + chi_rho * dY
-            // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
+        (
+            cscale(MINUS_I, commutator(self.hamiltonian, rho))
+                + self.lindblad(a)
+                + self.lindblad(self.c1)
+                + self.lindblad(self.c2)
+                + self.lindblad(self.c3)
+                + chi_rho * dY,
+            dY,
+        )
+
+        // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
-        let k_0 = self.dv(self.rho).scale(time_step);
-        let k_1 = self.dv(self.rho + k_0.scale(0.5)).scale(time_step);
-        let k_2 = self.dv(self.rho + k_1.scale(0.5)).scale(time_step);
-        let k_3 = self.dv(self.rho + k_2).scale(time_step);
-        self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(1.0 / 3.0);
+        let (k_0, dY_0) = self.dv(self.rho);
+        let (k_1, dY_1) = self.dv(self.rho + k_0.scale(0.5 * time_step));
+        let (k_2, dY_2) = self.dv(self.rho + k_1.scale(0.5 * time_step));
+        let (k_3, dY_3) = self.dv(self.rho + k_2.scale(time_step));
+        self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(time_step / 3.0);
+        self.Y += (dY_1 + dY_2 + (dY_0 + dY_3) * 0.5) * (time_step / 3.0);
     }
 }
 
@@ -198,6 +202,8 @@ fn simulate() {
         std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
     let mut data_file =
         std::fs::File::create(format!("results/{}_trajectories.csv", timestamp)).unwrap();
+    let mut current_file =
+        std::fs::File::create(format!("results/{}_currents.csv", timestamp)).unwrap();
 
     let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
 
@@ -244,6 +250,9 @@ let gamma_phi = {gamma_phi};
 
         // Start the timer.
         let now = std::time::Instant::now();
+        let mut t = dt;
+
+        current_file.write(b"0.0, 0.0").unwrap();
 
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
@@ -253,7 +262,7 @@ let gamma_phi = {gamma_phi};
                 .unwrap();
 
             // Sample on the normal distribution.
-            system.dW = system.rng.sample::<f32, StandardNormal>(StandardNormal)/dt.sqrt();
+            system.dW = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
 
             // Do the runge-kutta4 step.
             system.runge_kutta(dt);
@@ -265,15 +274,14 @@ let gamma_phi = {gamma_phi};
                 pipe.write_vec3(bloch_vector(&system.rho));
             }
 
-            // Bloch v-O1ector magnitude test
-            //let mag = bloch_vector(system.rho).magnitude();
-            //let eigenvalues = system.rho.eigenvalues().unwrap();
-            //assert!(((2.0 * eigenvalues[0].re - 1.0) - mag).abs() < 0.01, "Bloch vector magnitude was wrong.");
+            // Calculate integrated current
+            let zeta = system.Y / t.sqrt();
 
-            //if  i % (1 << 12) == 0 {
-            //  println!("Trace: {}", system.rho.trace());
-            //  println!("rho: {}", system.rho);
-            //}
+            current_file
+                .write(format!(", {}, {}", system.Y.re, system.Y.im).as_bytes())
+                .unwrap();
+
+            t += dt;
         }
 
         println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
