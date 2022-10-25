@@ -24,8 +24,8 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.00002;
-const STEP_COUNT: u32 = 1000000;
+const dt: f32 = 0.005;
+const STEP_COUNT: u32 = 1000;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
