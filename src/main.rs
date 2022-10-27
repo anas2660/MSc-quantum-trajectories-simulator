@@ -214,7 +214,7 @@ fn simulate() {
     let kappa = 10.0;
     let beta = Operator::identity();
     let delta_r = 0.0;
-    let eta = 0.9 * ONE;
+    let eta = 0.5 * ONE;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
@@ -278,7 +278,7 @@ let gamma_phi = {gamma_phi};
             let zeta = system.Y / t.sqrt();
 
             current_file
-                .write(format!(", {}, {}", system.Y.re, system.Y.im).as_bytes())
+                .write(format!(", {}, {}", zeta.re, zeta.im).as_bytes())
                 .unwrap();
 
             t += dt;
@@ -290,6 +290,8 @@ let gamma_phi = {gamma_phi};
         data_file
             .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
             .unwrap();
+
+        current_file.write(b"\n").unwrap();
 
         if pipe.is_opened() {
             break;
