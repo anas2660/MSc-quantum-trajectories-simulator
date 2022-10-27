@@ -1,8 +1,11 @@
+#![feature(portable_simd)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
+mod num;
+
 use rand_distr::StandardNormal;
-use std::{io::Write, ops::Mul};
+use std::{io::Write, ops::Mul, ptr::write_volatile};
 
 use nalgebra::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -242,6 +245,9 @@ let gamma_phi = {gamma_phi};
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
     pipe.write_u32(STEP_COUNT);
 
+    let mut trajectory = Vec::new();
+    let mut signal = Vec::new();
+
     for simulation in 0..1000 {
         // Initialize system
         let mut system = QubitSystem::new(
@@ -257,9 +263,10 @@ let gamma_phi = {gamma_phi};
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
             // Write current state.
-            data_file
-                .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
-                .unwrap();
+            //data_file
+            //    .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
+            //    .unwrap();
+            trajectory.push(system.rho[(0, 0)].re);
 
             // Sample on the normal distribution.
             system.dW = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
@@ -278,18 +285,35 @@ let gamma_phi = {gamma_phi};
             let zeta = system.Y / t.sqrt();
 
             current_file
-                .write(format!(", {}, {}", system.Y.re, system.Y.im).as_bytes())
+                .write(format!(", {}, {}", zeta.re, zeta.im).as_bytes())
                 .unwrap();
+            signal.push(zeta);
 
             t += dt;
         }
 
-        println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
-
         // Write last state.
-        data_file
-            .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
-            .unwrap();
+        trajectory.push(system.rho[(0, 0)].re);
+        //data_file
+        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+        //    .unwrap();
+
+        // Write
+        //println!("TEST {}", trajectory[0]);
+        //data_file
+        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+        //    .unwrap();
+
+        data_file.write(format!("{}", trajectory[0]).as_bytes()).unwrap();
+        trajectory.iter().skip(1).for_each(|p| {
+            data_file.write(format!(",{}", p).as_bytes()).unwrap();
+        });
+        data_file.write(b"\n").unwrap();
+        current_file.write(b"\n").unwrap();
+
+        trajectory.clear();
+        signal.clear();
+        println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
 
         if pipe.is_opened() {
             break;
@@ -308,4 +332,43 @@ fn bloch_vector(rho: &Operator) -> Vector3<f32> {
 fn main() {
     println!("Starting simulation...");
     simulate();
+    return;
+    {
+        let op = Operator::identity();
+        let op2 = Operator::identity();
+        let mut op3 = Operator::identity();
+
+        let timer = std::time::Instant::now();
+        for lane in 0..num::Real::LANES {
+            for i in 0..10000000 {
+                //let factor = 100000.0/(i as f32);
+                unsafe { write_volatile(&mut op3, op * op2 * op3.scale(0.4)) };
+            }
+        }
+        let time_in_ms = timer.elapsed().as_millis();
+        println!("nalgebra took: {} ms", time_in_ms);
+        //// println!("nalgebra was\n{}", op3);
+    }
+
+    {
+        let op = num::Operator::ident();
+        let op2 = num::Operator::ident();
+        let mut op3 = num::Operator::ident();
+
+        let timer = std::time::Instant::now();
+
+        for _ in 0..10000000 {
+            //let factors = num::Real::splat(100000.0)/ivals;
+
+            unsafe { write_volatile(&mut op3, op * op2 * op3 * 0.4) };
+            //ivals = seq + num::Real::splat((i*8) as f32);
+        }
+        let time_in_ms = timer.elapsed().as_millis();
+
+        println!("ours took: {} ms", time_in_ms);
+        //// println!("Ours was\n{}", op3);
+        //println!("ivals {:?}", ivals);
+        //println!("op1*op2 {}", op*op2);
+        //println!("1*1={}", Complex::from(1.0)*Complex::from(1.0));
+    }
 }
