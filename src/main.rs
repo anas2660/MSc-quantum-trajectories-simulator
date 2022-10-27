@@ -217,7 +217,7 @@ fn simulate() {
     let kappa = 10.0;
     let beta = Operator::identity();
     let delta_r = 0.0;
-    let eta = 0.9 * ONE;
+    let eta = 0.5 * ONE;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
@@ -314,6 +314,8 @@ let gamma_phi = {gamma_phi};
         trajectory.clear();
         signal.clear();
         println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
+
+        current_file.write(b"\n").unwrap();
 
         if pipe.is_opened() {
             break;
