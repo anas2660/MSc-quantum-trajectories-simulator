@@ -263,9 +263,9 @@ let gamma_phi = {gamma_phi};
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
             // Write current state.
-            //data_file
-            //    .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
-            //    .unwrap();
+            data_file
+                .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
+                .unwrap();
             trajectory.push(system.rho[(0, 0)].re);
 
             // Sample on the normal distribution.
@@ -294,28 +294,15 @@ let gamma_phi = {gamma_phi};
 
         // Write last state.
         trajectory.push(system.rho[(0, 0)].re);
-        //data_file
-        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
-        //    .unwrap();
-
-        // Write
-        //println!("TEST {}", trajectory[0]);
-        //data_file
-        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
-        //    .unwrap();
-
-        data_file.write(format!("{}", trajectory[0]).as_bytes()).unwrap();
-        trajectory.iter().skip(1).for_each(|p| {
-            data_file.write(format!(",{}", p).as_bytes()).unwrap();
-        });
-        data_file.write(b"\n").unwrap();
+        data_file
+            .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+            .unwrap();
         current_file.write(b"\n").unwrap();
 
         trajectory.clear();
         signal.clear();
         println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
 
-        current_file.write(b"\n").unwrap();
 
         if pipe.is_opened() {
             break;
