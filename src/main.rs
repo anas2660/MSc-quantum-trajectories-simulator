@@ -29,6 +29,7 @@ const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
 const dt: f32 = 0.005;
 const STEP_COUNT: u32 = 1000;
+const SIMULATION_COUNT: u32 = 1000;
 
 const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
 const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
@@ -204,9 +205,9 @@ fn simulate() {
     let mut parameter_file =
         std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
     let mut data_file =
-        std::fs::File::create(format!("results/{}_trajectories.csv", timestamp)).unwrap();
+        std::fs::File::create(format!("results/{}_trajectories.dat", timestamp)).unwrap();
     let mut current_file =
-        std::fs::File::create(format!("results/{}_currents.csv", timestamp)).unwrap();
+        std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
 
     let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
 
@@ -248,6 +249,13 @@ let gamma_phi = {gamma_phi};
     let mut trajectory = Vec::new();
     let mut signal = Vec::new();
 
+
+    // metadata
+    current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
+    current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
+    data_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
+    data_file.write(&(STEP_COUNT+1).to_le_bytes()).unwrap();
+
     for simulation in 0..1000 {
         // Initialize system
         let mut system = QubitSystem::new(
@@ -258,14 +266,15 @@ let gamma_phi = {gamma_phi};
         let now = std::time::Instant::now();
         let mut t = dt;
 
-        current_file.write(b"0.0, 0.0").unwrap();
+        //current_file.write(b"0.0, 0.0").unwrap();
+        //current_file.write(&[0u8; 8]).unwrap();
 
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
             // Write current state.
-            data_file
-                .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
-                .unwrap();
+            //data_file
+            //    .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
+            //    .unwrap();
             trajectory.push(system.rho[(0, 0)].re);
 
             // Sample on the normal distribution.
@@ -284,9 +293,9 @@ let gamma_phi = {gamma_phi};
             // Calculate integrated current
             let zeta = system.Y / t.sqrt();
 
-            current_file
-                .write(format!(", {}, {}", zeta.re, zeta.im).as_bytes())
-                .unwrap();
+            //current_file
+            //    .write(format!(", {}, {}", zeta.re, zeta.im).as_bytes())
+            //    .unwrap();
             signal.push(zeta);
 
             t += dt;
@@ -294,15 +303,34 @@ let gamma_phi = {gamma_phi};
 
         // Write last state.
         trajectory.push(system.rho[(0, 0)].re);
+        //data_file
+        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+        //    .unwrap();
+        //current_file.write(b"\n").unwrap();
+
+        println!("Sim ({simulation}) time: {} us", now.elapsed().as_micros());
+
         data_file
-            .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+            .write(unsafe {
+                std::slice::from_raw_parts(
+                    trajectory.as_ptr() as *const u8,
+                    trajectory.len() * std::mem::size_of::<f32>(),
+                )
+            })
             .unwrap();
-        current_file.write(b"\n").unwrap();
+
+        current_file
+            .write(unsafe {
+                std::slice::from_raw_parts(
+                    signal.as_ptr() as *const u8,
+                    signal.len() * std::mem::size_of::<Complex<f32>>(),
+                )
+            })
+            .unwrap();
+
 
         trajectory.clear();
         signal.clear();
-        println!("Sim ({simulation}) time: {} ms", now.elapsed().as_millis());
-
 
         if pipe.is_opened() {
             break;
