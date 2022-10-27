@@ -35,7 +35,7 @@ plt.colorbar(
         cmap=cm.viridis,
     ),
     orientation="vertical",
-    # label="Some Units",
+    label="probabilities",
 )
 plt.title("Integrated Current")
 plt.xlabel("real")
