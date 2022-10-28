@@ -7,9 +7,9 @@ files = glob.glob("results/*currents*")
 files.sort()
 filename = files[-1]
 
-data_file = open(filename, "rb").read()
-data = np.frombuffer(data_file, np.float32, offset=8)
-metadata = np.frombuffer(data_file, np.int32, count=2)
+data_buffer = open(filename, "rb").read()
+data = np.frombuffer(data_buffer, np.float32, offset=8)
+metadata = np.frombuffer(data_buffer, np.uint32, count=2)
 
 data = np.reshape(data, (metadata[0], metadata[1], 2))
 
