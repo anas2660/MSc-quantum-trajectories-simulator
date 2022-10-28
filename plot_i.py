@@ -3,22 +3,26 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import glob
 
-curr_files = glob.glob("results/*currents*")
-traj_files = glob.glob("results/*trajectories*")
-curr_files.sort()
-traj_files.sort()
-curr_filename = curr_files[-1]
-traj_filename = traj_files[-1]
+files = glob.glob("results/*currents*")
+files.sort()
+filename = files[-1]
+simulations = np.fromfile(filename, np.int32)[0]
+steps = np.fromfile(filename, np.int32)[1]
 
-data = np.loadtxt(curr_filename, delimiter=",")
-probabilities = np.loadtxt(traj_filename, delimiter=",")[:, -1]
+data = np.fromfile(filename, np.float32)[2:]
+data = np.reshape(data, (simulations, steps, 2))
 
-real = np.empty(1000)
-imag = np.empty(1000)
 
-for i in range(1000):
-    real[i] = data[i, -2]
-    imag[i] = data[i, -1]
+files = glob.glob("results/*trajectories*")
+files.sort()
+filename = files[-1]
+probabilities = np.fromfile(filename, np.float32)[2:]
+probabilities = np.reshape(probabilities, (simulations, steps + 1))[:, -1]
+print(np.size(probabilities))
+
+
+real = data[:, -1, 0]
+imag = data[:, -1, 1]
 
 
 colormap = cm.viridis(
@@ -41,12 +45,4 @@ plt.title("Integrated Current")
 plt.xlabel("real")
 plt.ylabel("imaginary")
 plt.grid()
-# plt.scatter(imag, t)
 plt.show()
-
-
-# plt.hist(real)
-# plt.show()
-#
-# plt.hist(imag)
-# plt.show()
