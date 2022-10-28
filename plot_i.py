@@ -6,14 +6,17 @@ import glob
 files = glob.glob("results/*currents*")
 files.sort()
 filename = files[-1]
-data = np.fromfile(filename, np.float32, offset=8)
-metadata = np.fromfile(filename, np.int32, count=2)
-#
+
+data_file = open(filename, "rb").read()
+data = np.frombuffer(data_file, np.float32, offset=8)
+metadata = np.frombuffer(data_file, np.int32, count=2)
+
 data = np.reshape(data, (metadata[0], metadata[1], 2))
 
 files = glob.glob("results/*trajectories*")
 files.sort()
 filename = files[-1]
+
 probabilities = np.fromfile(filename, np.float32, offset=8)
 probabilities = np.reshape(probabilities, (metadata[0], metadata[1] + 1))[:, -1]
 
