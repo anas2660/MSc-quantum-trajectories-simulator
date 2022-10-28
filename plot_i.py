@@ -6,24 +6,19 @@ import glob
 files = glob.glob("results/*currents*")
 files.sort()
 filename = files[-1]
-simulations = np.fromfile(filename, np.int32)[0]
-steps = np.fromfile(filename, np.int32)[1]
-
-data = np.fromfile(filename, np.float32)[2:]
-data = np.reshape(data, (simulations, steps, 2))
-
+data = np.fromfile(filename, np.float32, offset=8)
+metadata = np.fromfile(filename, np.int32, count=2)
+#
+data = np.reshape(data, (metadata[0], metadata[1], 2))
 
 files = glob.glob("results/*trajectories*")
 files.sort()
 filename = files[-1]
-probabilities = np.fromfile(filename, np.float32)[2:]
-probabilities = np.reshape(probabilities, (simulations, steps + 1))[:, -1]
-print(np.size(probabilities))
-
+probabilities = np.fromfile(filename, np.float32, offset=8)
+probabilities = np.reshape(probabilities, (metadata[0], metadata[1] + 1))[:, -1]
 
 real = data[:, -1, 0]
 imag = data[:, -1, 1]
-
 
 colormap = cm.viridis(
     (probabilities - np.min(probabilities))
