@@ -37,10 +37,10 @@ plt.colorbar(
         cmap=cm.viridis,
     ),
     orientation="vertical",
-    label="probabilities",
+    label="Probabilities",
 )
 plt.title("Integrated Current")
-plt.xlabel("real")
-plt.ylabel("imaginary")
+plt.xlabel("Real")
+plt.ylabel("Imaginary")
 plt.grid()
 plt.show()
