@@ -98,9 +98,20 @@ impl QubitSystem {
         let alpha = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta);
         let ddelta = delta_r - delta_s;
         let epsilon_s = g * g * ddelta / (kappa * kappa + ddelta * ddelta);
+        //let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
+        //    - cscale(I * g / (kappa + I * ddelta), sigma_minus);
+        let delta_e = 1.0;
+        let a = Operator::from_partial_diagonal(&[
+            beta[(0, 0)] / (0.5 * kappa - I * (delta_r - g * g / delta_e)),
+            beta[(0, 0)] / (0.5 * kappa - I * (delta_r + g * g / delta_e)),
+        ]);
         let hamiltonian = cscale(delta_s * 0.5, sigma_z)
-            + cscale(g, alpha * sigma_plus + alpha.conjugate() * sigma_minus)
-            - cscale(epsilon_s, sigma_plus * sigma_minus);
+            + cscale(g, a * sigma_plus + a.conjugate() * sigma_minus)
+            + a.conjugate() * a.scale(delta_r)
+            + cscale(
+                I * (2.0 * kappa_1).sqrt(),
+                beta * a.conjugate() - beta.conjugate() * a,
+            );
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -120,17 +131,12 @@ impl QubitSystem {
         //);
 
         //let hamiltonian = cscale(MINUS_I, hamiltonian);
-        let c_out = cscale(
-            (kappa_1 * 2.0).sqrt() * ONE,
-            alpha - cscale(I * g / (kappa + I * ddelta), sigma_minus),
-        );
+        let c_out = cscale((kappa_1 * 2.0).sqrt() * ONE, a) - beta;
 
         //let Ls = tensor_dot(A, A.adjoint())
         //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
         //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-        let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
-            - cscale(I * g / (kappa + I * ddelta), sigma_minus);
         let c1 = cscale(ONE * (2.0 * kappa).sqrt(), a);
         let c2 = cscale(ONE * gamma_dec.sqrt(), sigma_minus);
         let c3 = cscale(ONE * (gamma_phi / 2.0).sqrt(), sigma_z);
@@ -249,12 +255,11 @@ let gamma_phi = {gamma_phi};
     let mut trajectory = Vec::new();
     let mut signal = Vec::new();
 
-
     // metadata
     current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
     current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
     data_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
-    data_file.write(&(STEP_COUNT+1).to_le_bytes()).unwrap();
+    data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
     for simulation in 0..1000 {
         // Initialize system
@@ -327,7 +332,6 @@ let gamma_phi = {gamma_phi};
                 )
             })
             .unwrap();
-
 
         trajectory.clear();
         signal.clear();
