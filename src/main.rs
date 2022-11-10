@@ -167,11 +167,6 @@ impl QubitSystem {
     }
 
     fn dv(&mut self, rho: Operator) -> (Operator, Complex<f32>) {
-        //let chi_rho = cscale(
-        //    self.sqrt_eta,
-        //    self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
-        //);
-
         let h_cal = self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint()
             - cscale(
                 ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
@@ -184,8 +179,6 @@ impl QubitSystem {
                 ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
                 self.rho,
             );
-
-        //let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
         (
@@ -226,8 +219,8 @@ fn simulate() {
         std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
     let mut data_file =
         std::fs::File::create(format!("results/{}_trajectories.dat", timestamp)).unwrap();
-    let mut current_file =
-        std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
+    //let mut current_file =
+    //    std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
 
     let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
 
@@ -270,8 +263,8 @@ let gamma_phi = {gamma_phi};
     let mut signal = Vec::new();
 
     // metadata
-    current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
-    current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
+    //current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
+    //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
     data_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
     data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
@@ -344,14 +337,14 @@ let gamma_phi = {gamma_phi};
             })
             .unwrap();
 
-        current_file
-            .write(unsafe {
-                std::slice::from_raw_parts(
-                    signal.as_ptr() as *const u8,
-                    signal.len() * std::mem::size_of::<Complex<f32>>(),
-                )
-            })
-            .unwrap();
+        //current_file
+        //    .write(unsafe {
+        //        std::slice::from_raw_parts(
+        //            signal.as_ptr() as *const u8,
+        //            signal.len() * std::mem::size_of::<Complex<f32>>(),
+        //        )
+        //    })
+        //    .unwrap();
 
         trajectory.clear();
         signal.clear();
