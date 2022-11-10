@@ -63,7 +63,7 @@ struct QubitSystem {
     c1: Operator,
     c2: Operator,
     c3: Operator,
-    dW: f32,
+    dW: [f32; 2],
 }
 
 #[inline]
@@ -157,7 +157,7 @@ impl QubitSystem {
             c1,
             c2,
             c3,
-            dW: 0.0,
+            dW: [0.0; 2],
         }
     }
 
@@ -167,12 +167,25 @@ impl QubitSystem {
     }
 
     fn dv(&mut self, rho: Operator) -> (Operator, Complex<f32>) {
-        let chi_rho = cscale(
-            self.sqrt_eta,
-            self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
-        );
+        //let chi_rho = cscale(
+        //    self.sqrt_eta,
+        //    self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint(),
+        //);
 
-        let dY = chi_rho.trace() + self.dW;
+        let h_cal = self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint()
+            - cscale(
+                ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
+                self.rho,
+            );
+
+        let h_cal_neg = cscale(MINUS_I, self.c_out_phased * self.rho)
+            + cscale(I, self.rho * self.c_out_phased.adjoint())
+            - cscale(
+                ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
+                self.rho,
+            );
+
+        //let dY = chi_rho.trace() + self.dW;
 
         let a = self.measurement;
         (
@@ -181,8 +194,9 @@ impl QubitSystem {
                 + self.lindblad(self.c1)
                 + self.lindblad(self.c2)
                 + self.lindblad(self.c3)
-                + chi_rho * dY,
-            dY,
+                + (h_cal.scale(self.dW[0]) + h_cal_neg.scale(self.dW[1]))
+                    * self.rho.scale(0.5.sqrt()),
+            ZERO,
         )
 
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
@@ -283,7 +297,13 @@ let gamma_phi = {gamma_phi};
             trajectory.push(system.rho[(0, 0)].re);
 
             // Sample on the normal distribution.
-            system.dW = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
+            //for dw in system.dW.iter_mut() {
+            //    *dw = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
+            //}
+
+            system
+                .dW
+                .fill_with(|| system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt());
 
             // Do the runge-kutta4 step.
             system.runge_kutta(dt);
