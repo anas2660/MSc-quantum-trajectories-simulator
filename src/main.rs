@@ -27,7 +27,7 @@ const I: Complex<f32> = Complex::new(0.0, 1.0);
 const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
 const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.005;
+const dt: f32 = 0.01;
 const STEP_COUNT: u32 = 1000;
 const SIMULATION_COUNT: u32 = 1000;
 
@@ -42,6 +42,7 @@ macro_rules! lowering {
     };
 }
 
+#[inline]
 fn cscale(c: Complex<f32>, m: Operator) -> Operator {
     m.component_mul(&Operator::from_element(c))
 }
@@ -55,7 +56,7 @@ struct QubitSystem {
     rho: Operator,
     Y: Complex<f32>,
     //t: f32
-    sqrt_eta: Complex<f32>,
+    sqrt_eta: f32,
     c_out_phased: Operator,
     d_chi_rho: Operator,
     rng: ThreadRng,
@@ -90,7 +91,7 @@ impl QubitSystem {
         kappa: f32,
         beta: Operator,
         delta_r: f32,
-        eta: cf32,
+        eta: f32,
         Phi: f32,
         gamma_dec: f32,
         gamma_phi: f32,
@@ -101,17 +102,23 @@ impl QubitSystem {
         //let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
         //    - cscale(I * g / (kappa + I * ddelta), sigma_minus);
         let delta_e = 1.0;
+        let chi = 0.6;
+
         let a = Operator::from_partial_diagonal(&[
             beta[(0, 0)] / (0.5 * kappa - I * (delta_r - g * g / delta_e)),
             beta[(0, 0)] / (0.5 * kappa - I * (delta_r + g * g / delta_e)),
         ]);
+
+        let N = a.adjoint() * a;
+
         let hamiltonian = cscale(delta_s * 0.5, sigma_z)
-            + cscale(g, a * sigma_plus + a.conjugate() * sigma_minus)
-            + a.conjugate() * a.scale(delta_r)
-            + cscale(
+            + cscale(g, a * sigma_plus + a.adjoint() * sigma_minus)
+            + N.scale(delta_r)
+            + cscale( // Detuning
                 I * (2.0 * kappa_1).sqrt(),
-                beta * a.conjugate() - beta.conjugate() * a,
-            );
+                beta * a.adjoint() - beta.conjugate() * a,
+            )
+            + (N * sigma_z).scale(chi);
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -143,7 +150,7 @@ impl QubitSystem {
 
         let sqrt_eta = eta.sqrt();
         let c_out_phased = c_out * ((I * Phi).exp());
-        let d_chi_rho = cscale(sqrt_eta, c_out_phased + c_out_phased.adjoint());
+        let d_chi_rho = (c_out_phased + c_out_phased.adjoint()).scale(sqrt_eta);
 
         Self {
             hamiltonian,
@@ -188,7 +195,7 @@ impl QubitSystem {
                 + self.lindblad(self.c2)
                 + self.lindblad(self.c3)
                 + (h_cal.scale(self.dW[0]) + h_cal_neg.scale(self.dW[1]))
-                    * self.rho.scale(0.5.sqrt()),
+                    * self.rho.scale(self.sqrt_eta),
             ZERO,
         )
 
@@ -231,7 +238,7 @@ fn simulate() {
     let kappa = 10.0;
     let beta = Operator::identity();
     let delta_r = 0.0;
-    let eta = 0.5 * ONE;
+    let eta = 0.5;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
