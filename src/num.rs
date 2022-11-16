@@ -318,6 +318,18 @@ impl Mul<f32> for Complex {
     }
 }
 
+
+impl Mul<Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn mul(self, rhs: Complex) -> Self::Output {
+        &rhs * &V::splat(self)
+    }
+}
+
+
+
 impl MulAssign<&Complex> for Complex {
     #[inline]
     fn mul_assign(&mut self, rhs: &Complex) {
@@ -645,6 +657,7 @@ impl Add<Operator> for Operator {
 }
 
 impl AddAssign for Operator {
+    #[inline]
     fn add_assign(&mut self, rhs: Self) {
         *self = (&(*self)) + &rhs;
     }
@@ -672,5 +685,27 @@ impl Sub<Operator> for Operator {
     #[inline]
     fn sub(self, rhs: Operator) -> Self::Output {
         &self - &rhs
+    }
+}
+
+
+impl Div<&Complex> for &Operator {
+    type Output = Operator;
+    fn div(self, rhs: &Complex) -> Self::Output {
+        let mut result: Operator = self.clone();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] = &result.elements[y][x] / rhs;
+            }
+        }
+        result
+    }
+}
+
+impl Div<Complex> for Operator {
+    type Output = Operator;
+    #[inline]
+    fn div(self, rhs: Complex) -> Self::Output {
+       &self / &rhs
     }
 }

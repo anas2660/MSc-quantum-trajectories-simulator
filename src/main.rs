@@ -53,9 +53,6 @@ fn cscale(c: cf32, m: Operator) -> Operator {
     //m.component_mul(&Operator::from_element(c))
 }
 
-
-
-
 // fn cscale4(c: cf32, m: SMatrix<cf32, 4, 4>) -> SMatrix<cf32, 4, 4> {
 //     m.component_mul(&SMatrix::<cf32, 4, 4>::from_element(c))
 // }
@@ -86,10 +83,9 @@ fn anticommutator(a: Operator, b: Operator) -> Operator {
     &(a * b) + &(b * a)
 }
 
-
 #[inline]
 fn half(operator: Operator) -> Operator {
-    cscale(HALF, operator)
+    0.5 * operator
 }
 
 impl QubitSystem {
@@ -121,12 +117,11 @@ impl QubitSystem {
 
         let N = a.adjoint() * a;
 
-        let hamiltonian = sigma_z.scale(delta_s * 0.5)
+        let hamiltonian = 0.5 * delta_s * sigma_z
             + g * (a * sigma_plus + a.dagger() * sigma_minus)
             + delta_r * N
             + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * a // Detuning
-            + chi * N * sigma_z ;
-
+            + chi * N * sigma_z;
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -138,7 +133,7 @@ impl QubitSystem {
         //let psi = Vector2::<cf32>::new(ONE, ZERO);
         //let rho = psi.mul(&psi.transpose());
 
-        let rho = Operator::new(ONE,ZERO,ZERO,ZERO);
+        let rho = Operator::new(ONE, ZERO, ZERO, ZERO);
 
         //let rho = Vector4::<cf32>::new(
         //    *rho.index((0, 0)),
@@ -148,19 +143,19 @@ impl QubitSystem {
         //);
 
         //let hamiltonian = cscale(MINUS_I, hamiltonian);
-        let c_out = (kappa_1 * 2.0).sqrt()*a - beta*Operator::identity();
+        let c_out = (kappa_1 * 2.0).sqrt() * a - beta * Operator::identity();
 
         //let Ls = tensor_dot(A, A.adjoint())
         //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
         //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-        let c1 = cscale(ONE * (2.0 * kappa).sqrt(), a);
-        let c2 = cscale(ONE * gamma_dec.sqrt(), sigma_minus);
-        let c3 = cscale(ONE * (gamma_phi / 2.0).sqrt(), sigma_z);
+        let c1 = (2.0 * kappa).sqrt() * a;
+        let c2 = gamma_dec.sqrt() * sigma_minus;
+        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z;
 
         let sqrt_eta = eta.sqrt();
         let c_out_phased = c_out * ((I * Phi).exp());
-        let d_chi_rho = (c_out_phased + c_out_phased.adjoint()).scale(sqrt_eta);
+        let d_chi_rho = sqrt_eta * (c_out_phased + c_out_phased.adjoint());
 
         Self {
             hamiltonian,
@@ -179,55 +174,45 @@ impl QubitSystem {
     }
 
     fn lindblad(&self, operator: Operator) -> Operator {
-        operator * self.rho * operator.adjoint()
-            - half(anticommutator(operator.adjoint() * operator, self.rho))
+        operator * self.rho * operator.dagger()
+            - 0.5 * anticommutator(operator.dagger() * operator, self.rho)
     }
 
     fn dv(&mut self, rho: Operator) -> (Operator, cf32) {
         let h_cal = self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint()
-            - cscale(
-                ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
-                self.rho,
-            );
+            - ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace() * self.rho;
 
-        let h_cal_neg = cscale(MINUS_I, self.c_out_phased * self.rho)
-            + cscale(I, self.rho * self.c_out_phased.adjoint())
-            - cscale(
-                ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
-                self.rho,
-            );
+        let h_cal_neg = MINUS_I * self.c_out_phased * self.rho
+            + I * self.rho * self.c_out_phased.adjoint()
+            - ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace() * self.rho;
 
         let a = self.measurement;
-        //println!("{}", rho);
         (
-            cscale(MINUS_I, commutator(self.hamiltonian, rho))
+            MINUS_I * commutator(self.hamiltonian, rho)
                 + self.lindblad(a)
                 + self.lindblad(self.c1)
                 + self.lindblad(self.c2)
                 + self.lindblad(self.c3)
-                + (h_cal*self.dW[0] + h_cal_neg*self.dW[1])
-                    * self.rho.scale(self.sqrt_eta),
+                + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
             ZERO,
         )
-
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
         let (k_0, dY_0) = self.dv(self.rho);
-        let (k_1, dY_1) = self.dv(self.rho + k_0.scale(0.5 * time_step));
-        let (k_2, dY_2) = self.dv(self.rho + k_1.scale(0.5 * time_step));
-        let (k_3, dY_3) = self.dv(self.rho + k_2.scale(time_step));
-        self.rho += (k_1 + k_2 + (k_0 + k_3).scale(0.5)).scale(time_step / 3.0);
-        self.Y += (dY_1 + dY_2 + (dY_0 + dY_3) * 0.5) * (time_step / 3.0);
+        let (k_1, dY_1) = self.dv(self.rho + 0.5 * time_step * k_0);
+        let (k_2, dY_2) = self.dv(self.rho + 0.5 * time_step * k_1);
+        let (k_3, dY_3) = self.dv(self.rho + time_step * k_2);
+        let t_3 = time_step / 3.0;
+        self.rho += t_3 * (k_1 + k_2 + 0.5 * (k_0 + k_3));
+        self.Y += t_3 * (dY_1 + dY_2 + 0.5 * (dY_0 + dY_3));
     }
 }
-
 
 //fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<cf32, 4, 4> {
 //    m1.kronecker(&m2.transpose())
 //}
-
 
 fn simulate() {
     let timestamp = std::time::SystemTime::UNIX_EPOCH
@@ -303,7 +288,6 @@ let gamma_phi = {gamma_phi};
 
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
-
             // Write current state.
             //data_file
             //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
@@ -311,13 +295,6 @@ let gamma_phi = {gamma_phi};
             trajectory.push(system.rho[(0, 0)].real()[0]);
 
             // Sample on the normal distribution.
-            //for dw in system.dW.iter_mut() {
-            //    *dw = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
-            //}
-
-            //system
-            //    .dW
-            //    .fill_with(|| );
             {
                 for lane in 0..Real::LANES {
                     system.dW[0][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
@@ -332,7 +309,7 @@ let gamma_phi = {gamma_phi};
             system.runge_kutta(dt);
 
             // Normalize rho.
-            system.rho = cscale(1.0 / system.rho.trace(), system.rho);
+            system.rho = system.rho / system.rho.trace();
 
             if pipe.is_opened() {
                 let bv = bloch_vector(&system.rho);
@@ -388,59 +365,15 @@ let gamma_phi = {gamma_phi};
     }
 }
 
-
-
 fn bloch_vector(rho: &Operator) -> Vector3<f32> {
     Vector3::new(
-        rho[(0, 1)].real()[1] + rho[(1, 0)].real()[1],
-        rho[(0, 1)].imag()[1] - rho[(1, 0)].imag()[1],
-        rho[(0, 0)].real()[1] - rho[(1, 1)].real()[1],
+        rho[(0, 1)].real()[0] + rho[(1, 0)].real()[0],
+        rho[(0, 1)].imag()[0] - rho[(1, 0)].imag()[0],
+        rho[(0, 0)].real()[0] - rho[(1, 1)].real()[0],
     )
 }
 
 fn main() {
     println!("Starting simulation...");
     simulate();
-
-    /*
-    return;
-    {
-        let op = Operator::identity();
-        let op2 = Operator::identity();
-        let mut op3 = Operator::identity();
-
-        let timer = std::time::Instant::now();
-        for lane in 0..num::Real::LANES {
-            for i in 0..10000000 {
-                //let factor = 100000.0/(i as f32);
-                unsafe { write_volatile(&mut op3, op * op2 * op3.scale(0.4)) };
-            }
-        }
-        let time_in_ms = timer.elapsed().as_millis();
-        println!("nalgebra took: {} ms", time_in_ms);
-        //// println!("nalgebra was\n{}", op3);
-    }
-
-    {
-        let op = num::Operator::ident();
-        let op2 = num::Operator::ident();
-        let mut op3 = num::Operator::ident();
-
-        let timer = std::time::Instant::now();
-
-        for _ in 0..10000000 {
-            //let factors = num::Real::splat(100000.0)/ivals;
-
-            unsafe { write_volatile(&mut op3, op * op2 * op3 * 0.4) };
-            //ivals = seq + num::Real::splat((i*8) as f32);
-        }
-        let time_in_ms = timer.elapsed().as_millis();
-
-        println!("ours took: {} ms", time_in_ms);
-        //// println!("Ours was\n{}", op3);
-        //println!("ivals {:?}", ivals);
-        //println!("op1*op2 {}", op*op2);
-        //println!("1*1={}", Complex::from(1.0)*Complex::from(1.0));
-}
-*/
 }
