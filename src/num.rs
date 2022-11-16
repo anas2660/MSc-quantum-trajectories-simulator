@@ -1,12 +1,12 @@
 use std::{
+    arch::asm,
+    arch::x86_64::__m256,
     fmt::Display,
     iter::Sum,
-    ops::{Add, AddAssign, Mul, MulAssign},
+    mem::{MaybeUninit, swap},
+    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign, Div, DivAssign, Index},
     simd::f32x8,
-    arch::asm,
-    arch::x86_64::__m256, mem::MaybeUninit
 };
-
 
 pub type V = f32x8;
 pub type Real = V;
@@ -36,6 +36,44 @@ macro_rules! C {
 
 impl Complex {
     //    fn from_real(f32) -> Complex {}
+    #[inline]
+    pub const fn new(re: f32, im: f32) -> Self {
+        Complex {
+            real: V::from_array([re; V::LANES]),
+            imag: V::from_array([im; V::LANES]),
+        }
+    }
+
+    #[inline]
+    pub fn conjugate(&self) -> Self {
+        Complex {
+            real: self.real,
+            imag: -self.imag,
+        }
+    }
+
+    #[inline]
+    pub fn exp(&self) -> Self {
+        let mut result = self.clone();
+        for lane in 0..V::LANES {
+            use nalgebra::*;
+            let tmp = nalgebra::Complex::new(result.real.as_array()[lane], result.imag.as_array()[lane]);
+            let a = tmp.exp();
+            result.real[lane] = a.re;
+            result.imag[lane] = a.im;
+        }
+        result
+    }
+
+    #[inline]
+    pub fn real(&self) -> Real {
+        self.real
+    }
+
+    #[inline]
+    pub fn imag(&self) -> Real {
+        self.imag
+    }
 }
 
 impl Display for Complex {
@@ -56,6 +94,7 @@ impl Display for Complex {
 }
 
 impl From<f32> for Complex {
+    #[inline]
     fn from(value: f32) -> Self {
         //Complex {
         //        real: Real::splat(value),
@@ -68,6 +107,7 @@ impl From<f32> for Complex {
 impl Add<&Complex> for &Complex {
     type Output = Complex;
 
+    #[inline]
     fn add(self, rhs: &Complex) -> Self::Output {
         Complex {
             real: self.real + rhs.real,
@@ -76,9 +116,55 @@ impl Add<&Complex> for &Complex {
     }
 }
 
+
+impl Add for Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn add(self, rhs: Complex) -> Self::Output {
+        &self + &rhs
+    }
+}
+
+impl Sub<&Complex> for &Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn sub(self, rhs: &Complex) -> Self::Output {
+        Complex {
+            real: self.real - rhs.real,
+            imag: self.imag - rhs.imag,
+        }
+    }
+}
+
+
+impl Sub<f32> for &Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn sub(self, rhs: f32) -> Self::Output {
+        Complex {
+            real: self.real - V::splat(rhs),
+            imag: self.imag,
+        }
+    }
+}
+
+
+impl Sub<Complex> for Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn sub(self, rhs: Complex) -> Self::Output {
+        &self - &rhs
+    }
+}
+
 impl Add<f32> for &Complex {
     type Output = Complex;
 
+    #[inline]
     fn add(self, rhs: f32) -> Self::Output {
         Complex {
             real: self.real + V::splat(rhs),
@@ -86,6 +172,84 @@ impl Add<f32> for &Complex {
         }
     }
 }
+
+impl Add<Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn add(self, rhs: Complex) -> Self::Output {
+        &rhs + self
+    }
+}
+
+
+impl Sub<&Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn sub(self, rhs: &Complex) -> Self::Output {
+        Complex {
+            real: V::splat(self) - rhs.real,
+            imag: -rhs.imag,
+        }
+    }
+}
+
+
+impl Sub<Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn sub(self, rhs: Complex) -> Self::Output {
+        self - &rhs
+    }
+}
+
+impl Div<&Complex> for &Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn div(self, rhs: &Complex) -> Self::Output {
+        let denum = rhs.real*rhs.real + rhs.imag*rhs.imag;
+        Complex {
+            real: (self.real * rhs.real + self.imag * rhs.imag) / denum,
+            imag: (self.imag * rhs.real - self.real * rhs.imag) / denum,
+        }
+    }
+}
+
+
+
+impl Div<Complex> for Complex {
+    type Output = Complex;
+    #[inline]
+    fn div(self, rhs: Complex) -> Self::Output {
+        &self / &rhs
+    }
+}
+
+
+impl Div<&Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn div(self, rhs: &Complex) -> Self::Output {
+        let denum = rhs.real*rhs.real + rhs.imag*rhs.imag;
+        Complex {
+            real:  V::splat(self) * rhs.real / denum,
+            imag: -V::splat(self) * rhs.imag / denum,
+        }
+    }
+}
+
+impl Div<Complex> for f32 {
+    type Output = Complex;
+    #[inline]
+    fn div(self, rhs: Complex) -> Self::Output {
+        self/&rhs
+    }
+}
+
 
 
 
@@ -98,7 +262,6 @@ impl Mul<&Complex> for &Complex {
             real: self.real * rhs.real - self.imag * rhs.imag,
             imag: self.real * rhs.imag + self.imag * rhs.real,
         };
-
 
         // FMA implementation (slower for some reason)
         /*
@@ -122,13 +285,13 @@ impl Mul<&Complex> for &Complex {
             Complex { real: real.into(), imag: imag.into() }
         }
         */
-
     }
 }
 
 impl Mul<&V> for &Complex {
     type Output = Complex;
 
+    #[inline]
     fn mul(self, rhs: &V) -> Self::Output {
         Complex {
             real: self.real * rhs,
@@ -137,13 +300,33 @@ impl Mul<&V> for &Complex {
     }
 }
 
+impl Mul<f32> for &Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
+        self * &V::splat(rhs)
+    }
+}
+
+impl Mul<f32> for Complex {
+    type Output = Complex;
+
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
+        &self * &V::splat(rhs)
+    }
+}
+
 impl MulAssign<&Complex> for Complex {
+    #[inline]
     fn mul_assign(&mut self, rhs: &Complex) {
         *self = &(*self) * rhs;
     }
 }
 
 impl MulAssign<&V> for Complex {
+    #[inline]
     fn mul_assign(&mut self, rhs: &V) {
         *self = &(*self) * rhs;
     }
@@ -160,6 +343,20 @@ impl AddAssign<Complex> for Complex {
     #[inline]
     fn add_assign(&mut self, rhs: Complex) {
         *self = &(*self) + &rhs;
+    }
+}
+
+impl SubAssign<&Complex> for Complex {
+    #[inline]
+    fn sub_assign(&mut self, rhs: &Complex) {
+        *self = &(*self) - rhs;
+    }
+}
+
+impl SubAssign<Complex> for Complex {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Complex) {
+        *self = &(*self) - &rhs;
     }
 }
 
@@ -180,16 +377,84 @@ pub struct Operator {
 
 impl Operator {
     const SIZE: usize = 2;
-    pub fn ident() -> Self {
-        let mut result: MaybeUninit<Operator> = unsafe { std::mem::MaybeUninit::uninit() };
+    pub fn identity() -> Self {
+        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = C!(((x==y) as u32) as f32) };
+                unsafe { (*result.as_mut_ptr()).elements[y][x] = C!(((x == y) as u32) as f32) };
             }
         }
 
         unsafe { result.assume_init() }
     }
+
+    pub const fn new(v00: Complex, v01: Complex, v10: Complex, v11: Complex) -> Self {
+        Operator {
+            elements: [[v00, v01], [v10, v11]],
+        }
+    }
+
+    pub fn from_fn<F: Fn(usize, usize) -> Complex >(f: F) -> Self {
+        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                unsafe { (*result.as_mut_ptr()).elements[y][x] = f(y,x) };
+            }
+        }
+        unsafe { result.assume_init() }
+    }
+
+
+    pub fn from_partial_diagonal(diag: &[Complex]) -> Self {
+        assert_eq!(diag.len(), Operator::SIZE);
+        Operator::new(diag[0], Complex::from(0.), Complex::from(0.), diag[1])
+    }
+
+    #[inline]
+    pub fn transpose(&self) -> Self {
+        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                unsafe { (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y]; }
+            }
+        }
+        unsafe { result.assume_init() }
+    }
+
+    #[inline]
+    pub fn conjugate(&self) -> Self {
+        let mut result = self.clone();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] = result.elements[y][x].conjugate()
+            }
+        }
+        result
+    }
+
+    pub fn dagger(&self) -> Self {
+        self.conjugate().transpose()
+    }
+
+    #[inline]
+    pub fn adjoint(&self) -> Self {
+        self.dagger()
+    }
+
+    #[inline]
+    pub fn scale(&self, rhs: f32) -> Self {
+        self * rhs
+    }
+
+    #[inline]
+    pub fn trace(&self) -> Complex {
+        let mut result = Complex::from(0.0);
+        for i in 0..Operator::SIZE {
+            result += self.elements[i][i]
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
@@ -202,6 +467,15 @@ impl Display for Operator {
             f.write_str("\n")?;
         }
         Ok(())
+    }
+}
+
+impl Index<(usize, usize)> for Operator {
+    type Output = Complex;
+
+    #[inline]
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        &self.elements[index.0][index.1]
     }
 }
 
@@ -295,3 +569,101 @@ impl Mul<V> for Operator {
     }
 }
 
+impl Mul<&Complex> for &Operator {
+    type Output = Operator;
+
+    #[inline]
+    fn mul(self, rhs: &Complex) -> Self::Output {
+        let mut result: Operator = self.clone();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] *= rhs;
+            }
+        }
+        result
+    }
+}
+
+impl Mul<&Operator> for Complex {
+    type Output = Operator;
+
+    #[inline]
+    fn mul(self, rhs: &Operator) -> Self::Output {
+        rhs * &self
+    }
+}
+
+
+impl Mul<Operator> for Complex {
+    type Output = Operator;
+    #[inline]
+    fn mul(self, rhs: Operator) -> Self::Output {
+        &rhs * &self
+    }
+}
+
+
+impl Mul<Complex> for Operator {
+    type Output = Operator;
+    #[inline]
+    fn mul(self, rhs: Complex) -> Self::Output {
+        &self * &rhs
+    }
+}
+
+
+
+
+impl Add<&Operator> for &Operator {
+    type Output = Operator;
+
+    #[inline]
+    fn add(self, rhs: &Operator) -> Self::Output {
+        let mut result: Operator = self.clone();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] += rhs.elements[y][x];
+            }
+        }
+        result
+    }
+}
+
+impl Add<Operator> for Operator {
+    type Output = Operator;
+    #[inline]
+    fn add(self, rhs: Operator) -> Self::Output {
+        &self + &rhs
+    }
+}
+
+impl AddAssign for Operator {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = (&(*self)) + &rhs;
+    }
+}
+
+
+impl Sub<&Operator> for &Operator {
+    type Output = Operator;
+
+    #[inline]
+    fn sub(self, rhs: &Operator) -> Self::Output {
+        let mut result: Operator = self.clone();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] -= rhs.elements[y][x];
+            }
+        }
+        result
+    }
+}
+
+
+impl Sub<Operator> for Operator {
+    type Output = Operator;
+    #[inline]
+    fn sub(self, rhs: Operator) -> Self::Output {
+        &self - &rhs
+    }
+}

@@ -3,29 +3,30 @@
 #![allow(non_upper_case_globals)]
 
 mod num;
+use num::*;
 
 use rand_distr::StandardNormal;
-use std::{io::Write, ops::Mul, ptr::write_volatile};
+use rayon::prelude::IntoParallelIterator;
+use std::io::Write;
 
-use nalgebra::*;
+// use nalgebra::*;
+use nalgebra::Vector3;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 mod pipewriter;
 use pipewriter::*;
 
-//type Operator = SMatrix::<f32, 2, 2>;
-type Operator = SMatrix<Complex<f32>, 2, 2>;
-//type Dimensions = usize;
-
+// type Operator = SMatrix<Complex<f32>, 2, 2>;
+//type Operator = SMatrix<Complex<f32>, 2, 2>;
 #[allow(non_camel_case_types)]
-type cf32 = Complex<f32>;
+type cf32 = Complex;
 
-const HALF: Complex<f32> = Complex::new(0.5, 0.0);
-const ONE: Complex<f32> = Complex::new(1.0, 0.0);
-const MINUS_ONE: Complex<f32> = Complex::new(-1.0, 0.0);
-const I: Complex<f32> = Complex::new(0.0, 1.0);
-const MINUS_I: Complex<f32> = Complex::new(0.0, -1.0);
-const ZERO: Complex<f32> = Complex::new(0.0, 0.0);
+const HALF: cf32 = Complex::new(0.5, 0.0);
+const ONE: cf32 = Complex::new(1.0, 0.0);
+const MINUS_ONE: cf32 = Complex::new(-1.0, 0.0);
+const I: cf32 = Complex::new(0.0, 1.0);
+const MINUS_I: cf32 = Complex::new(0.0, -1.0);
+const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 const dt: f32 = 0.01;
 const STEP_COUNT: u32 = 1000;
@@ -42,19 +43,28 @@ macro_rules! lowering {
     };
 }
 
+//#[inline]
+//fn cscale(c: cf32, m: Operator) -> Operator {
+//    m.component_mul(&Operator::from_element(c))
+//}
+
 #[inline]
-fn cscale(c: Complex<f32>, m: Operator) -> Operator {
-    m.component_mul(&Operator::from_element(c))
+fn cscale(c: cf32, m: Operator) -> Operator {
+    c * &m
+    //m.component_mul(&Operator::from_element(c))
 }
 
-// fn cscale4(c: Complex<f32>, m: SMatrix<Complex<f32>, 4, 4>) -> SMatrix<Complex<f32>, 4, 4> {
-//     m.component_mul(&SMatrix::<Complex<f32>, 4, 4>::from_element(c))
+
+
+
+// fn cscale4(c: cf32, m: SMatrix<cf32, 4, 4>) -> SMatrix<cf32, 4, 4> {
+//     m.component_mul(&SMatrix::<cf32, 4, 4>::from_element(c))
 // }
 
 struct QubitSystem {
     hamiltonian: Operator,
     rho: Operator,
-    Y: Complex<f32>,
+    Y: cf32,
     //t: f32
     sqrt_eta: f32,
     c_out_phased: Operator,
@@ -64,18 +74,19 @@ struct QubitSystem {
     c1: Operator,
     c2: Operator,
     c3: Operator,
-    dW: [f32; 2],
+    dW: [Real; 2],
 }
 
 #[inline]
 fn commutator(a: Operator, b: Operator) -> Operator {
-    a * b - b * a
+    &(a * b) - &(b * a)
 }
 
 #[inline]
 fn anticommutator(a: Operator, b: Operator) -> Operator {
-    a * b + b * a
+    &(a * b) + &(b * a)
 }
+
 
 #[inline]
 fn half(operator: Operator) -> Operator {
@@ -85,18 +96,18 @@ fn half(operator: Operator) -> Operator {
 impl QubitSystem {
     fn new(
         A: Operator,
-        delta_s: cf32,
-        g: cf32,
+        delta_s: f32,
+        g: f32,
         kappa_1: f32,
         kappa: f32,
-        beta: Operator,
+        beta: cf32,
         delta_r: f32,
         eta: f32,
         Phi: f32,
         gamma_dec: f32,
         gamma_phi: f32,
     ) -> Self {
-        let alpha = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta);
+        let alpha = (2.0 * kappa_1).sqrt() / (kappa + I * delta_r) * beta;
         let ddelta = delta_r - delta_s;
         let epsilon_s = g * g * ddelta / (kappa * kappa + ddelta * ddelta);
         //let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
@@ -105,20 +116,21 @@ impl QubitSystem {
         let chi = 0.6;
 
         let a = Operator::from_partial_diagonal(&[
-            beta[(0, 0)] / (0.5 * kappa - I * (delta_r - g * g / delta_e)),
-            beta[(0, 0)] / (0.5 * kappa - I * (delta_r + g * g / delta_e)),
+            beta / (0.5 * kappa - I * (delta_r - g * g / delta_e)),
+            beta / (0.5 * kappa - I * (delta_r + g * g / delta_e)),
         ]);
 
         let N = a.adjoint() * a;
 
-        let hamiltonian = cscale(delta_s * 0.5, sigma_z)
-            + cscale(g, a * sigma_plus + a.adjoint() * sigma_minus)
+        let hamiltonian = sigma_z.scale(delta_s * 0.5)
+            + (a * sigma_plus + a.adjoint() * sigma_minus).scale(g)
             + N.scale(delta_r)
             + cscale( // Detuning
                 I * (2.0 * kappa_1).sqrt(),
                 beta * a.adjoint() - beta.conjugate() * a,
             )
             + (N * sigma_z).scale(chi);
+
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -127,10 +139,12 @@ impl QubitSystem {
         //    - cscale(0.5*I, c_1.ad_mul(&c_1));
         //    - cscale(0.5*I, c_2.ad_mul(&c_2));
 
-        let psi = Vector2::<Complex<f32>>::new(ONE, ZERO);
+        //let psi = Vector2::<cf32>::new(ONE, ZERO);
+        //let rho = psi.mul(&psi.transpose());
 
-        let rho = psi.mul(&psi.transpose());
-        //let rho = Vector4::<Complex<f32>>::new(
+        let rho = Operator::new(ONE,ZERO,ZERO,ZERO);
+
+        //let rho = Vector4::<cf32>::new(
         //    *rho.index((0, 0)),
         //    *rho.index((0, 1)),
         //    *rho.index((1, 0)),
@@ -138,7 +152,7 @@ impl QubitSystem {
         //);
 
         //let hamiltonian = cscale(MINUS_I, hamiltonian);
-        let c_out = cscale((kappa_1 * 2.0).sqrt() * ONE, a) - beta;
+        let c_out = a.scale((kappa_1 * 2.0).sqrt()) - beta*Operator::identity();
 
         //let Ls = tensor_dot(A, A.adjoint())
         //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
@@ -164,7 +178,7 @@ impl QubitSystem {
             c1,
             c2,
             c3,
-            dW: [0.0; 2],
+            dW: [Real::splat(0.0); 2],
         }
     }
 
@@ -173,7 +187,7 @@ impl QubitSystem {
             - half(anticommutator(operator.adjoint() * operator, self.rho))
     }
 
-    fn dv(&mut self, rho: Operator) -> (Operator, Complex<f32>) {
+    fn dv(&mut self, rho: Operator) -> (Operator, cf32) {
         let h_cal = self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint()
             - cscale(
                 ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace(),
@@ -188,13 +202,14 @@ impl QubitSystem {
             );
 
         let a = self.measurement;
+        //println!("{}", rho);
         (
             cscale(MINUS_I, commutator(self.hamiltonian, rho))
                 + self.lindblad(a)
                 + self.lindblad(self.c1)
                 + self.lindblad(self.c2)
                 + self.lindblad(self.c3)
-                + (h_cal.scale(self.dW[0]) + h_cal_neg.scale(self.dW[1]))
+                + (h_cal*self.dW[0] + h_cal_neg*self.dW[1])
                     * self.rho.scale(self.sqrt_eta),
             ZERO,
         )
@@ -212,9 +227,10 @@ impl QubitSystem {
     }
 }
 
-fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<Complex<f32>, 4, 4> {
-    m1.kronecker(&m2.transpose())
-}
+
+//fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<cf32, 4, 4> {
+//    m1.kronecker(&m2.transpose())
+//}
 
 fn simulate() {
     let timestamp = std::time::SystemTime::UNIX_EPOCH
@@ -229,14 +245,14 @@ fn simulate() {
     //let mut current_file =
     //    std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
 
-    let gamma = SMatrix::<Complex<f32>, 4, 4>::from_diagonal_element(ONE);
+    //let gamma = SMatrix::<cf32, 4, 4>::from_diagonal_element(ONE);
 
     let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
-    let delta_s = ONE;
-    let g = ONE * 2.0;
+    let delta_s = 1.0;
+    let g = 2.0;
     let kappa_1 = 10.0;
     let kappa = 10.0;
-    let beta = Operator::identity();
+    let beta = ONE;
     let delta_r = 0.0;
     let eta = 0.5;
     let Phi = 0.0;
@@ -290,20 +306,30 @@ let gamma_phi = {gamma_phi};
 
         // Do 2000 steps.
         for _ in 0..STEP_COUNT {
+
             // Write current state.
             //data_file
-            //    .write(format!("{}, ", system.rho[(0, 0)].re).as_bytes())
+            //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
             //    .unwrap();
-            trajectory.push(system.rho[(0, 0)].re);
+            trajectory.push(system.rho[(0, 0)].real()[0]);
 
             // Sample on the normal distribution.
             //for dw in system.dW.iter_mut() {
             //    *dw = system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt();
             //}
 
-            system
-                .dW
-                .fill_with(|| system.rng.sample::<f32, StandardNormal>(StandardNormal) / dt.sqrt());
+            //system
+            //    .dW
+            //    .fill_with(|| );
+            {
+                for lane in 0..Real::LANES {
+                    system.dW[0][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                    system.dW[1][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                }
+                let c = Real::splat(1.0 / dt.sqrt());
+                system.dW[0] *= c;
+                system.dW[1] *= c;
+            }
 
             // Do the runge-kutta4 step.
             system.runge_kutta(dt);
@@ -312,14 +338,16 @@ let gamma_phi = {gamma_phi};
             system.rho = cscale(1.0 / system.rho.trace(), system.rho);
 
             if pipe.is_opened() {
-                pipe.write_vec3(bloch_vector(&system.rho));
+                let bv = bloch_vector(&system.rho);
+                pipe.write_vec3(bv);
+                dbg!(&bv);
             }
 
             // Calculate integrated current
-            let zeta = system.Y / t.sqrt();
+            let zeta = system.Y * (1.0 / t.sqrt());
 
             //current_file
-            //    .write(format!(", {}, {}", zeta.re, zeta.im).as_bytes())
+            //    .write(format!(", {}, {}", zeta.real(), zeta.imag()).as_bytes())
             //    .unwrap();
             signal.push(zeta);
 
@@ -327,9 +355,10 @@ let gamma_phi = {gamma_phi};
         }
 
         // Write last state.
-        trajectory.push(system.rho[(0, 0)].re);
+        trajectory.push(system.rho[(0, 0)].real()[0]);
+
         //data_file
-        //    .write(format!("{}\n", system.rho[(0, 0)].re).as_bytes())
+        //    .write(format!("{}\n", system.rho[(0, 0)].real()).as_bytes())
         //    .unwrap();
         //current_file.write(b"\n").unwrap();
 
@@ -348,7 +377,7 @@ let gamma_phi = {gamma_phi};
         //    .write(unsafe {
         //        std::slice::from_raw_parts(
         //            signal.as_ptr() as *const u8,
-        //            signal.len() * std::mem::size_of::<Complex<f32>>(),
+        //            signal.len() * std::mem::size_of::<cf32>(),
         //        )
         //    })
         //    .unwrap();
@@ -362,17 +391,21 @@ let gamma_phi = {gamma_phi};
     }
 }
 
+
+
 fn bloch_vector(rho: &Operator) -> Vector3<f32> {
     Vector3::new(
-        rho[(0, 1)].re + rho[(1, 0)].re,
-        rho[(0, 1)].im - rho[(1, 0)].im,
-        rho[(0, 0)].re - rho[(1, 1)].re,
+        rho[(0, 1)].real()[1] + rho[(1, 0)].real()[1],
+        rho[(0, 1)].imag()[1] - rho[(1, 0)].imag()[1],
+        rho[(0, 0)].real()[1] - rho[(1, 1)].real()[1],
     )
 }
 
 fn main() {
     println!("Starting simulation...");
     simulate();
+
+    /*
     return;
     {
         let op = Operator::identity();
@@ -411,5 +444,6 @@ fn main() {
         //println!("ivals {:?}", ivals);
         //println!("op1*op2 {}", op*op2);
         //println!("1*1={}", Complex::from(1.0)*Complex::from(1.0));
-    }
+}
+*/
 }
