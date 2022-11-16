@@ -6,7 +6,6 @@ mod num;
 use num::*;
 
 use rand_distr::StandardNormal;
-use rayon::prelude::IntoParallelIterator;
 use std::io::Write;
 
 // use nalgebra::*;
@@ -123,13 +122,10 @@ impl QubitSystem {
         let N = a.adjoint() * a;
 
         let hamiltonian = sigma_z.scale(delta_s * 0.5)
-            + (a * sigma_plus + a.adjoint() * sigma_minus).scale(g)
-            + N.scale(delta_r)
-            + cscale( // Detuning
-                I * (2.0 * kappa_1).sqrt(),
-                beta * a.adjoint() - beta.conjugate() * a,
-            )
-            + (N * sigma_z).scale(chi);
+            + g * (a * sigma_plus + a.dagger() * sigma_minus)
+            + delta_r * N
+            + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * a // Detuning
+            + chi * N * sigma_z ;
 
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
@@ -152,7 +148,7 @@ impl QubitSystem {
         //);
 
         //let hamiltonian = cscale(MINUS_I, hamiltonian);
-        let c_out = a.scale((kappa_1 * 2.0).sqrt()) - beta*Operator::identity();
+        let c_out = (kappa_1 * 2.0).sqrt()*a - beta*Operator::identity();
 
         //let Ls = tensor_dot(A, A.adjoint())
         //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
@@ -231,6 +227,7 @@ impl QubitSystem {
 //fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<cf32, 4, 4> {
 //    m1.kronecker(&m2.transpose())
 //}
+
 
 fn simulate() {
     let timestamp = std::time::SystemTime::UNIX_EPOCH
