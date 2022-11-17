@@ -189,9 +189,9 @@ impl QubitSystem {
         (
             MINUS_I * commutator(self.hamiltonian, rho)
                 + self.lindblad(a)
-                //+ self.lindblad(self.c1)
-                //+ self.lindblad(self.c2)
-                //+ self.lindblad(self.c3)
+                + self.lindblad(self.c1) // Photon field transmission/losses
+                //+ self.lindblad(self.c2) // Decay to ground state
+                + self.lindblad(self.c3)
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
             ZERO,
         )
