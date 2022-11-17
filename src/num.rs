@@ -56,11 +56,14 @@ impl Complex {
     pub fn exp(&self) -> Self {
         let mut result = self.clone();
         for lane in 0..V::LANES {
-            use nalgebra::*;
-            let tmp = nalgebra::Complex::new(result.real.as_array()[lane], result.imag.as_array()[lane]);
-            let a = tmp.exp();
-            result.real[lane] = a.re;
-            result.imag[lane] = a.im;
+            // formula: e^(a + bi) = e^a (cos(b) + i*sin(b))
+            let real = result.real.as_array()[lane];
+            let imag = result.imag.as_array()[lane];
+            let realexp = real.exp();
+            let result_real = realexp * imag.cos();
+            let result_imag = realexp * imag.sin();
+            result.real[lane] = result_real;
+            result.imag[lane] = result_imag;
         }
         result
     }

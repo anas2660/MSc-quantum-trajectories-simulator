@@ -1,4 +1,3 @@
-use nalgebra::*;
 use std::io::Write;
 
 pub enum PipeWriter {
@@ -25,12 +24,12 @@ impl PipeWriter {
         }
     }
 
-    pub fn write_vec3(&mut self, vec: Vector3<f32>) {
+    pub fn write_vec3(&mut self, vec: [f32; 3]) {
         match self {
             PipeWriter::Opened(pipe) => {
-                let buf_data = vec.data.as_slice().as_ptr() as *const u8;
+                let buf_data = vec.as_ptr() as *const u8;
                 let buf = unsafe {
-                    std::slice::from_raw_parts(buf_data, std::mem::size_of::<Vector3<f32>>())
+                    std::slice::from_raw_parts(buf_data, std::mem::size_of::<[f32; 3]>())
                 };
                 pipe.write(buf).unwrap();
             }

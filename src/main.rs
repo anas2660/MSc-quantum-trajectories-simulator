@@ -8,8 +8,6 @@ use num::*;
 use rand_distr::StandardNormal;
 use std::io::Write;
 
-// use nalgebra::*;
-use nalgebra::Vector3;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 mod pipewriter;
@@ -111,17 +109,18 @@ impl QubitSystem {
         let chi = 0.6;
 
         let a = Operator::from_partial_diagonal(&[
-            beta / (0.5 * kappa - I * (delta_r - g * g / delta_e)),
-            beta / (0.5 * kappa - I * (delta_r + g * g / delta_e)),
+            beta / (0.5 * kappa - I * (delta_r - Complex::from(chi))),
+            beta / (0.5 * kappa - I * (delta_r + Complex::from(chi)))
         ]);
 
-        let N = a.adjoint() * a;
+        let N = a.dagger() * a;
 
         let hamiltonian = 0.5 * delta_s * sigma_z
-            + g * (a * sigma_plus + a.dagger() * sigma_minus)
+            //+ g * (a * sigma_plus + a.dagger() * sigma_minus)
             + delta_r * N
             + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * a // Detuning
-            + chi * N * sigma_z;
+            + chi * N * sigma_z
+            + chi*(sigma_z + Operator::identity());
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -133,7 +132,7 @@ impl QubitSystem {
         //let psi = Vector2::<cf32>::new(ONE, ZERO);
         //let rho = psi.mul(&psi.transpose());
 
-        let rho = Operator::new(ONE, ZERO, ZERO, ZERO);
+        let rho = Operator::new(HALF, HALF, HALF, HALF);
 
         //let rho = Vector4::<cf32>::new(
         //    *rho.index((0, 0)),
@@ -190,9 +189,9 @@ impl QubitSystem {
         (
             MINUS_I * commutator(self.hamiltonian, rho)
                 + self.lindblad(a)
-                + self.lindblad(self.c1)
-                + self.lindblad(self.c2)
-                + self.lindblad(self.c3)
+                //+ self.lindblad(self.c1)
+                //+ self.lindblad(self.c2)
+                //+ self.lindblad(self.c3)
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
             ZERO,
         )
@@ -311,10 +310,12 @@ let gamma_phi = {gamma_phi};
             // Normalize rho.
             system.rho = system.rho / system.rho.trace();
 
+            //println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
+
             if pipe.is_opened() {
                 let bv = bloch_vector(&system.rho);
                 pipe.write_vec3(bv);
-                dbg!(&bv);
+                //dbg!(&bv);
             }
 
             // Calculate integrated current
@@ -365,12 +366,12 @@ let gamma_phi = {gamma_phi};
     }
 }
 
-fn bloch_vector(rho: &Operator) -> Vector3<f32> {
-    Vector3::new(
+fn bloch_vector(rho: &Operator) -> [f32; 3] {
+    [
         rho[(0, 1)].real()[0] + rho[(1, 0)].real()[0],
         rho[(0, 1)].imag()[0] - rho[(1, 0)].imag()[0],
         rho[(0, 0)].real()[0] - rho[(1, 1)].real()[0],
-    )
+    ]
 }
 
 fn main() {
