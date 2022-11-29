@@ -4,6 +4,10 @@
 
 mod num;
 use num::*;
+mod operator;
+use operator::*;
+mod matrix;
+use matrix::*;
 
 use rand_distr::StandardNormal;
 use std::io::Write;
@@ -188,7 +192,7 @@ impl QubitSystem {
         let a = self.measurement;
         (
             MINUS_I * commutator(self.hamiltonian, rho)
-                + self.lindblad(a)
+                //+ self.lindblad(a)
                 + self.lindblad(self.c1) // Photon field transmission/losses
                 //+ self.lindblad(self.c2) // Decay to ground state
                 + self.lindblad(self.c3)
@@ -374,7 +378,18 @@ fn bloch_vector(rho: &Operator) -> [f32; 3] {
     ]
 }
 
+
+
 fn main() {
+
+    //let other_sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
+    //println!("other_sigma_z: \n{other_sigma_z}");
+    //let mut ident = Matrix::identity(3);
+    //ident[(0,1)] = ONE;
+    //println!("ident: \n{ident}");
+    //let prod = ident.kronecker(&other_sigma_z);
+    //println!("prod: \n{prod}");
+
     println!("Starting simulation...");
     simulate();
 }
