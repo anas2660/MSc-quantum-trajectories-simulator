@@ -3,8 +3,8 @@ use std::{
     arch::x86_64::__m256,
     fmt::Display,
     iter::Sum,
-    mem::{MaybeUninit, swap},
-    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign, Div, DivAssign, Index},
+    mem::{swap, MaybeUninit},
+    ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign},
     simd::f32x8,
 };
 
@@ -127,7 +127,6 @@ impl Add<&Complex> for &Complex {
     }
 }
 
-
 impl Add for Complex {
     type Output = Complex;
 
@@ -149,7 +148,6 @@ impl Sub<&Complex> for &Complex {
     }
 }
 
-
 impl Sub<f32> for &Complex {
     type Output = Complex;
 
@@ -161,7 +159,6 @@ impl Sub<f32> for &Complex {
         }
     }
 }
-
 
 impl Sub<Complex> for Complex {
     type Output = Complex;
@@ -193,7 +190,6 @@ impl Add<Complex> for f32 {
     }
 }
 
-
 impl Sub<&Complex> for f32 {
     type Output = Complex;
 
@@ -205,7 +201,6 @@ impl Sub<&Complex> for f32 {
         }
     }
 }
-
 
 impl Sub<Complex> for f32 {
     type Output = Complex;
@@ -221,15 +216,13 @@ impl Div<&Complex> for &Complex {
 
     #[inline]
     fn div(self, rhs: &Complex) -> Self::Output {
-        let denum = rhs.real*rhs.real + rhs.imag*rhs.imag;
+        let denum = rhs.real * rhs.real + rhs.imag * rhs.imag;
         Complex {
             real: (self.real * rhs.real + self.imag * rhs.imag) / denum,
             imag: (self.imag * rhs.real - self.real * rhs.imag) / denum,
         }
     }
 }
-
-
 
 impl Div<Complex> for Complex {
     type Output = Complex;
@@ -239,15 +232,14 @@ impl Div<Complex> for Complex {
     }
 }
 
-
 impl Div<&Complex> for f32 {
     type Output = Complex;
 
     #[inline]
     fn div(self, rhs: &Complex) -> Self::Output {
-        let denum = rhs.real*rhs.real + rhs.imag*rhs.imag;
+        let denum = rhs.real * rhs.real + rhs.imag * rhs.imag;
         Complex {
-            real:  V::splat(self) * rhs.real / denum,
+            real: V::splat(self) * rhs.real / denum,
             imag: -V::splat(self) * rhs.imag / denum,
         }
     }
@@ -257,12 +249,9 @@ impl Div<Complex> for f32 {
     type Output = Complex;
     #[inline]
     fn div(self, rhs: Complex) -> Self::Output {
-        self/&rhs
+        self / &rhs
     }
 }
-
-
-
 
 impl Mul<&Complex> for &Complex {
     type Output = Complex;
@@ -329,7 +318,6 @@ impl Mul<f32> for Complex {
     }
 }
 
-
 impl Mul<Complex> for f32 {
     type Output = Complex;
 
@@ -338,8 +326,6 @@ impl Mul<Complex> for f32 {
         &rhs * &V::splat(self)
     }
 }
-
-
 
 impl MulAssign<&Complex> for Complex {
     #[inline]
@@ -390,5 +376,12 @@ impl Sum for Complex {
             result += &c;
         }
         result
+    }
+}
+
+impl Mul for Complex {
+    type Output = Complex;
+    fn mul(self, rhs: Self) -> Self::Output {
+        &self * &rhs
     }
 }

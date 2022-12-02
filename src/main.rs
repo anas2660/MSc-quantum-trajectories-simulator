@@ -33,10 +33,6 @@ const dt: f32 = 0.01;
 const STEP_COUNT: u32 = 1000;
 const SIMULATION_COUNT: u32 = 1000;
 
-const sigma_z: Operator = Operator::new(ONE, ZERO, ZERO, MINUS_ONE);
-const sigma_plus: Operator = Operator::new(ZERO, ONE, ZERO, ZERO);
-const sigma_minus: Operator = Operator::new(ZERO, ZERO, ONE, ZERO);
-
 // From qutip implementation
 macro_rules! lowering {
     ($D:expr) => {
@@ -112,19 +108,25 @@ impl QubitSystem {
         let delta_e = 1.0;
         let chi = 0.6;
 
-        let a = Operator::from_partial_diagonal(&[
+        let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
+        let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
+        let sigma_minus: Matrix = Matrix::new(0.0, 0.0, 1.0, 0.0);
+
+        let a = Matrix::from_partial_diagonal(&[
             beta / (0.5 * kappa - I * (delta_r - Complex::from(chi))),
-            beta / (0.5 * kappa - I * (delta_r + Complex::from(chi)))
+            beta / (0.5 * kappa - I * (delta_r + Complex::from(chi))),
         ]);
 
-        let N = a.dagger() * a;
+        let N = a.dagger() * &a;
 
-        let hamiltonian = 0.5 * delta_s * sigma_z
+        let hamiltonian = 0.5 * delta_s * &sigma_z
             //+ g * (a * sigma_plus + a.dagger() * sigma_minus)
-            + delta_r * N
-            + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * a // Detuning
-            + chi * N * sigma_z
-            + chi*(sigma_z + Operator::identity());
+            + delta_r * &N
+            + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * &a // Detuning
+            + chi * &N * &sigma_z
+            + chi*(&sigma_z + &Matrix::identity(2));
+
+        let hamiltonian = hamiltonian.kronecker(&hamiltonian).to_operator();
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -136,7 +138,8 @@ impl QubitSystem {
         //let psi = Vector2::<cf32>::new(ONE, ZERO);
         //let rho = psi.mul(&psi.transpose());
 
-        let rho = Operator::new(HALF, HALF, HALF, HALF);
+        let small_rho = Matrix::new(0.5, 0.5, 0.5, 0.5);
+        let rho = small_rho.kronecker(&small_rho).to_operator();
 
         //let rho = Vector4::<cf32>::new(
         //    *rho.index((0, 0)),
@@ -146,15 +149,16 @@ impl QubitSystem {
         //);
 
         //let hamiltonian = cscale(MINUS_I, hamiltonian);
-        let c_out = (kappa_1 * 2.0).sqrt() * a - beta * Operator::identity();
+        let c_out =
+            (kappa_1 * 2.0).sqrt() * a.kronecker(&a).to_operator() - beta * Operator::identity();
 
         //let Ls = tensor_dot(A, A.adjoint())
         //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
         //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
 
-        let c1 = (2.0 * kappa).sqrt() * a;
-        let c2 = gamma_dec.sqrt() * sigma_minus;
-        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z;
+        let c1 = (2.0 * kappa).sqrt() * a.kronecker(&a).to_operator();
+        let c2 = gamma_dec.sqrt() * sigma_minus.kronecker(&sigma_minus).to_operator();
+        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z.kronecker(&sigma_z).to_operator();
 
         let sqrt_eta = eta.sqrt();
         let c_out_phased = c_out * ((I * Phi).exp());
@@ -378,10 +382,7 @@ fn bloch_vector(rho: &Operator) -> [f32; 3] {
     ]
 }
 
-
-
 fn main() {
-
     //let other_sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
     //println!("other_sigma_z: \n{other_sigma_z}");
     //let mut ident = Matrix::identity(3);

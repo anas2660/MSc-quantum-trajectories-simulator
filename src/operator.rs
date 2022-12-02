@@ -1,14 +1,18 @@
-use std::{mem::MaybeUninit, fmt::Display, ops::{Index, Mul, Add, AddAssign, Sub, Div}};
+use std::{
+    fmt::Display,
+    mem::MaybeUninit,
+    ops::{Add, AddAssign, Div, Index, Mul, Sub},
+};
 
 use crate::num::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Operator {
-    elements: [[Complex; 2]; 2],
+    elements: [[Complex; 4]; 4],
 }
 
 impl Operator {
-    pub const SIZE: usize = 2;
+    pub const SIZE: usize = 4;
     pub fn identity() -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
@@ -20,34 +24,40 @@ impl Operator {
         unsafe { result.assume_init() }
     }
 
-    pub const fn new(v00: Complex, v01: Complex, v10: Complex, v11: Complex) -> Self {
+    pub fn new(r0: &[Complex], r1: &[Complex], r2: &[Complex], r3: &[Complex]) -> Self {
         Operator {
-            elements: [[v00, v01], [v10, v11]],
+            elements: [
+                r0.try_into().unwrap(),
+                r1.try_into().unwrap(),
+                r2.try_into().unwrap(),
+                r3.try_into().unwrap(),
+            ],
         }
     }
 
-    pub fn from_fn<F: Fn(usize, usize) -> Complex >(f: F) -> Self {
+    pub fn from_fn<F: Fn(usize, usize) -> Complex>(f: F) -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = f(y,x) };
+                unsafe { (*result.as_mut_ptr()).elements[y][x] = f(y, x) };
             }
         }
         unsafe { result.assume_init() }
     }
 
-
-    pub fn from_partial_diagonal(diag: &[Complex]) -> Self {
-        assert_eq!(diag.len(), Operator::SIZE);
-        Operator::new(diag[0], Complex::from(0.), Complex::from(0.), diag[1])
-    }
+    //pub fn from_partial_diagonal(diag: &[Complex]) -> Self {
+    //    assert_eq!(diag.len(), Operator::SIZE);
+    //    Operator::new(diag[0], Complex::from(0.), Complex::from(0.), diag[1])
+    //}
 
     #[inline]
     pub fn transpose(&self) -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y]; }
+                unsafe {
+                    (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y];
+                }
             }
         }
         unsafe { result.assume_init() }
@@ -86,7 +96,6 @@ impl Operator {
         }
         result
     }
-
 }
 
 impl Display for Operator {
@@ -147,13 +156,6 @@ impl Mul<Operator> for &Operator {
     #[inline]
     fn mul(self, rhs: Operator) -> Self::Output {
         self * &rhs
-    }
-}
-
-impl Mul for Complex {
-    type Output = Complex;
-    fn mul(self, rhs: Self) -> Self::Output {
-        &self * &rhs
     }
 }
 
@@ -232,7 +234,6 @@ impl Mul<&Operator> for Complex {
     }
 }
 
-
 impl Mul<Operator> for Complex {
     type Output = Operator;
     #[inline]
@@ -240,7 +241,6 @@ impl Mul<Operator> for Complex {
         &rhs * &self
     }
 }
-
 
 impl Mul<Complex> for Operator {
     type Output = Operator;
@@ -280,7 +280,6 @@ impl AddAssign for Operator {
     }
 }
 
-
 impl Sub<&Operator> for &Operator {
     type Output = Operator;
 
@@ -296,7 +295,6 @@ impl Sub<&Operator> for &Operator {
     }
 }
 
-
 impl Sub<Operator> for Operator {
     type Output = Operator;
     #[inline]
@@ -304,7 +302,6 @@ impl Sub<Operator> for Operator {
         &self - &rhs
     }
 }
-
 
 impl Div<&Complex> for &Operator {
     type Output = Operator;
@@ -323,6 +320,6 @@ impl Div<Complex> for Operator {
     type Output = Operator;
     #[inline]
     fn div(self, rhs: Complex) -> Self::Output {
-       &self / &rhs
+        &self / &rhs
     }
 }

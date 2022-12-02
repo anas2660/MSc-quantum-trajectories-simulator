@@ -1,7 +1,12 @@
-use std::{ops::{Index, IndexMut}, fmt::Display};
+use std::{
+    fmt::Display,
+    ops::{Add, Index, IndexMut, Mul, Sub},
+};
 
 use crate::num::*;
+use crate::operator::*;
 
+#[derive(Clone)]
 pub struct Matrix {
     v: Vec<Vec<Complex>>,
 }
@@ -9,13 +14,17 @@ pub struct Matrix {
 impl Matrix {
     pub fn new(v00: f32, v01: f32, v10: f32, v11: f32) -> Matrix {
         Matrix {
-            v: [[C!(v00), C!(v01)].to_vec(), [C!(v10), C!(v11)].to_vec()].to_vec()
+            v: [
+                [Complex::new(v00, 0.0), Complex::new(v01, 0.0)].to_vec(),
+                [Complex::new(v10, 0.0), Complex::new(v11, 0.0)].to_vec(),
+            ]
+            .to_vec(),
         }
     }
 
-    pub fn zeros(size: usize) -> Matrix {
+    pub fn zeroed(rows: usize, columns: usize) -> Matrix {
         Matrix {
-            v: vec![vec![C!(0.0); size]; size],
+            v: vec![vec![C!(0.0); columns]; rows],
         }
     }
 
@@ -30,7 +39,7 @@ impl Matrix {
 
     pub fn from_partial_diagonal(diag: &[Complex]) -> Self {
         let size = diag.len();
-        let mut result = Matrix::zeros(size);
+        let mut result = Matrix::zeroed(size, size);
         for i in 0..size {
             result.v[i][i] = diag[i];
         }
@@ -38,14 +47,14 @@ impl Matrix {
     }
 
     pub fn kronecker(&self, rhs: &Matrix) -> Matrix {
-        let size = self.v.len()*rhs.v.len();
-        let mut result = Matrix::zeros(size);
+        let size = self.v.len() * rhs.v.len();
+        let mut result = Matrix::zeroed(size, size);
         let mut index = (0, 0);
 
         for j1 in 0..self.v[0].len() {
             for j2 in 0..rhs.v[0].len() {
                 for i1 in 0..self.v.len() {
-                    let coeff = self[((i1, j1))] ;
+                    let coeff = self[((i1, j1))];
 
                     for i2 in 0..rhs.v.len() {
                         result[index] = coeff * rhs[(i2, j2)];
@@ -62,6 +71,41 @@ impl Matrix {
         result
     }
 
+    #[inline]
+    pub fn to_operator(&self) -> Operator {
+        assert!(Operator::SIZE == self.v.len());
+        assert!(Operator::SIZE == self.v[0].len());
+        Operator::new(
+            self.v[0].as_slice(),
+            self.v[1].as_slice(),
+            self.v[2].as_slice(),
+            self.v[3].as_slice(),
+        )
+    }
+
+    pub fn transpose(&self) -> Self {
+        let mut result = Matrix::zeroed(self.v[0].len(), self.v.len());
+        for y in 0..self.v.len() {
+            for x in 0..self.v[0].len() {
+                result.v[x][y] = self.v[y][x];
+            }
+        }
+        result
+    }
+
+    pub fn conjugate(&self) -> Self {
+        let mut result = self.clone();
+        for y in 0..self.v.len() {
+            for x in 0..self.v[0].len() {
+                result.v[y][x] = result.v[y][x].conjugate();
+            }
+        }
+        result
+    }
+
+    pub fn dagger(&self) -> Self {
+        self.transpose().conjugate()
+    }
 }
 
 impl Display for Matrix {
@@ -77,9 +121,6 @@ impl Display for Matrix {
     }
 }
 
-
-
-
 impl Index<(usize, usize)> for Matrix {
     type Output = Complex;
 
@@ -89,8 +130,163 @@ impl Index<(usize, usize)> for Matrix {
     }
 }
 
-impl IndexMut<(usize, usize)> for Matrix  {
+impl IndexMut<(usize, usize)> for Matrix {
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
         &mut self.v[index.0][index.1]
+    }
+}
+
+impl Mul<&Matrix> for &Matrix {
+    type Output = Matrix;
+
+    #[inline]
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        assert!(self.v[0].len() == rhs.v.len());
+        let mut result = Matrix::zeroed(self.v.len(), rhs.v[0].len());
+        for y in 0..self.v.len() {
+            for x in 0..rhs.v[0].len() {
+                for id in 0..self.v[0].len() {
+                    result.v[y][x] += &self.v[y][id] * &rhs.v[id][x];
+                }
+            }
+        }
+        result
+    }
+}
+
+impl Mul<Matrix> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        &self * &rhs
+    }
+}
+impl Mul<&Matrix> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        &self * rhs
+    }
+}
+impl Mul<Matrix> for &Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        self * &rhs
+    }
+}
+
+impl Mul<f32> for &Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
+        self * &C!(rhs)
+    }
+}
+impl Mul<&Complex> for &Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: &Complex) -> Self::Output {
+        let mut result = self.clone();
+        for row in result.v.iter_mut() {
+            for element in row.iter_mut() {
+                *element *= rhs;
+            }
+        }
+        result
+    }
+}
+impl Mul<Complex> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: Complex) -> Self::Output {
+        &self * &rhs
+    }
+}
+impl Mul<&Matrix> for Complex {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        rhs * &self
+    }
+}
+impl Mul<Matrix> for Complex {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        &rhs * &self
+    }
+}
+impl Mul<f32> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
+        &self * rhs
+    }
+}
+
+impl Mul<Matrix> for f32 {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        &rhs * self
+    }
+}
+
+impl Mul<&Matrix> for f32 {
+    type Output = Matrix;
+    #[inline]
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        rhs * self
+    }
+}
+
+impl Add<&Matrix> for &Matrix {
+    type Output = Matrix;
+
+    #[inline]
+    fn add(self, rhs: &Matrix) -> Self::Output {
+        assert!(self.v.len() == rhs.v.len());
+        assert!(self.v[0].len() == rhs.v[0].len());
+        let mut result = self.clone();
+        for y in 0..self.v.len() {
+            for x in 0..self.v[0].len() {
+                result.v[y][x] += rhs.v[y][x];
+            }
+        }
+        result
+    }
+}
+
+impl Add<Matrix> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn add(self, rhs: Matrix) -> Self::Output {
+        &self + &rhs
+    }
+}
+
+impl Sub<&Matrix> for &Matrix {
+    type Output = Matrix;
+
+    #[inline]
+    fn sub(self, rhs: &Matrix) -> Self::Output {
+        assert!(self.v.len() == rhs.v.len());
+        assert!(self.v[0].len() == rhs.v[0].len());
+        let mut result: Matrix = self.clone();
+        for y in 0..self.v.len() {
+            for x in 0..self.v[0].len() {
+                result.v[y][x] -= rhs.v[y][x];
+            }
+        }
+        result
+    }
+}
+
+impl Sub<Matrix> for Matrix {
+    type Output = Matrix;
+    #[inline]
+    fn sub(self, rhs: Matrix) -> Self::Output {
+        &self - &rhs
     }
 }
