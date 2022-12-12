@@ -107,6 +107,7 @@ impl QubitSystem {
         //    - cscale(I * g / (kappa + I * ddelta), sigma_minus);
         let delta_e = 1.0;
         let chi = 0.6;
+        let omega = 1.0;
 
         let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
@@ -119,14 +120,23 @@ impl QubitSystem {
 
         let N = a.dagger() * &a;
 
-        let hamiltonian = 0.5 * delta_s * &sigma_z
+        let one  = Matrix::vector(&[1., 0.]);
+        let zero = Matrix::vector(&[0., 1.]);
+
+        let identity = Matrix::identity(2);
+        let hamiltonian =
+            0.5 * delta_s * &sigma_z
             //+ g * (a * sigma_plus + a.dagger() * sigma_minus)
             + delta_r * &N
             + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * &a // Detuning
             + chi * &N * &sigma_z
-            + chi*(&sigma_z + &Matrix::identity(2));
+            + chi*(&sigma_z + &identity)
+            + omega * (&one*zero.transpose() + &zero*&one.transpose()) // ω(|1X0| + |0X1|)
+            + &one * one.transpose() * omega * (&one*zero.transpose() + &zero*&one.transpose()) // CNOT
+            ;
 
-        let hamiltonian = hamiltonian.kronecker(&hamiltonian).to_operator();
+
+        let hamiltonian = (hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator();
 
         let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
         // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
@@ -138,8 +148,23 @@ impl QubitSystem {
         //let psi = Vector2::<cf32>::new(ONE, ZERO);
         //let rho = psi.mul(&psi.transpose());
 
-        let small_rho = Matrix::new(0.5, 0.5, 0.5, 0.5);
-        let rho = small_rho.kronecker(&small_rho).to_operator();
+        //let small_rho = Matrix::new(1.0, 0.0, 0.0, 0.);
+        //let rho = small_rho.kronecker(&small_rho).to_operator();
+        //let rho = zero.kronecker(&(&zero * &zero.transpose()).kronecker(&zero.transpose())).to_operator();
+        //let rho = (small_rho.kronecker(&identity) + identity.kronecker(&small_rho)).to_operator();
+        //let rho = rho/rho.trace();
+
+        // 00  0.5
+        // 01  0
+        // 10  0.5
+        // 11  0
+
+        let psi = Matrix::vector(&[f32::sqrt(0.5), 0.0, f32::sqrt(0.5), 0.0]);
+        let rho = (&psi * &psi.transpose()).to_operator();
+
+        //println!("{rho}");
+        //panic!();
+
 
         //let rho = Vector4::<cf32>::new(
         //    *rho.index((0, 0)),
@@ -318,10 +343,15 @@ let gamma_phi = {gamma_phi};
             // Normalize rho.
             system.rho = system.rho / system.rho.trace();
 
-            //println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
+            // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
 
             if pipe.is_opened() {
                 let bv = bloch_vector(&system.rho);
+                //let f = |c: Complex| {
+                //    let (r, i) = c.first();
+                //    (r*r + i*i).sqrt()
+                //};
+                //pipe.write_vec3([f(system.rho[(0,0)]), f(system.rho[(1,1)]), f(system.rho[(1,1)])]);
                 pipe.write_vec3(bv);
                 //dbg!(&bv);
             }
@@ -336,6 +366,7 @@ let gamma_phi = {gamma_phi};
 
             t += dt;
         }
+        //panic!();
 
         // Write last state.
         trajectory.push(system.rho[(0, 0)].real()[0]);
@@ -375,10 +406,11 @@ let gamma_phi = {gamma_phi};
 }
 
 fn bloch_vector(rho: &Operator) -> [f32; 3] {
+    const OFFSET: usize = 0;
     [
-        rho[(0, 1)].real()[0] + rho[(1, 0)].real()[0],
-        rho[(0, 1)].imag()[0] - rho[(1, 0)].imag()[0],
-        rho[(0, 0)].real()[0] - rho[(1, 1)].real()[0],
+        rho[(0 + OFFSET, 1 + OFFSET)].real()[0] + rho[(1 + OFFSET, 0 + OFFSET)].real()[0],
+        rho[(0 + OFFSET, 1 + OFFSET)].imag()[0] - rho[(1 + OFFSET, 0 + OFFSET)].imag()[0],
+        rho[(0 + OFFSET, 0 + OFFSET)].real()[0] - rho[(1 + OFFSET, 1 + OFFSET)].real()[0],
     ]
 }
 

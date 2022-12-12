@@ -78,6 +78,11 @@ impl Complex {
     pub fn imag(&self) -> Real {
         self.imag
     }
+
+    #[inline]
+    pub fn first(&self) -> (f32, f32) {
+        (self.real.as_array()[0], self.imag.as_array()[0])
+    }
 }
 
 impl Display for Complex {

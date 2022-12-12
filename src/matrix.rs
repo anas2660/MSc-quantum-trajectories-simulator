@@ -28,6 +28,7 @@ impl Matrix {
         }
     }
 
+
     pub fn identity(size: usize) -> Matrix {
         //let mut result = Matrix::zeros(size);
         Matrix {
@@ -42,6 +43,15 @@ impl Matrix {
         let mut result = Matrix::zeroed(size, size);
         for i in 0..size {
             result.v[i][i] = diag[i];
+        }
+        result
+    }
+
+    pub fn vector(elements: &[f32]) -> Self {
+        let size = elements.len();
+        let mut result = Matrix::zeroed(size, 1);
+        for i in 0..size {
+            result.v[i][0] = elements[i].into();
         }
         result
     }
