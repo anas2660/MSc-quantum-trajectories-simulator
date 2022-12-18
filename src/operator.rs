@@ -96,6 +96,16 @@ impl Operator {
         }
         result
     }
+
+    #[inline]
+    pub fn get_probabilites_simd(&self) -> StateProbabilitiesSimd {
+        let mut result = StateProbabilitiesSimd { v: [Real::splat(0.0); Operator::SIZE] };
+        for i in 0..Operator::SIZE {
+             result.v[i] = self[(i,i)].real()
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
@@ -321,5 +331,58 @@ impl Div<Complex> for Operator {
     #[inline]
     fn div(self, rhs: Complex) -> Self::Output {
         &self / &rhs
+    }
+}
+
+#[derive(Clone,Copy)]
+pub struct StateProbabilitiesSimd {
+    pub v: [Real; Operator::SIZE]
+}
+
+#[derive(Clone,Copy)]
+pub struct StateProbabilities {
+    pub v: [f32; Operator::SIZE]
+}
+
+
+impl StateProbabilitiesSimd {
+
+    #[inline]
+    pub fn zero() -> StateProbabilitiesSimd {
+        StateProbabilitiesSimd { v: [Real::splat(0.); Operator::SIZE] }
+    }
+
+    #[inline]
+    pub fn add(&mut self, rhs: &StateProbabilitiesSimd) {
+        for (s, r) in self.v.iter_mut().zip(rhs.v.iter()) {
+            *s += r;
+        }
+    }
+
+    #[inline]
+    pub fn divide(&mut self, rhs: f32) {
+        for s in self.v.iter_mut() {
+            *s /= Real::splat(rhs);
+        }
+    }
+
+    pub fn average(&self) -> StateProbabilities {
+        let mut result = StateProbabilities { v: [0.0f32; Operator::SIZE]};
+        for (out, v) in result.v.iter_mut().zip(self.v.iter()) {
+            *out = v.as_array().iter().sum::<f32>() / Real::LANES as f32;
+        }
+        result
+    }
+
+
+}
+
+impl StateProbabilities {
+    pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<f32>()*Operator::SIZE] {
+        let mut buf = [0u8; std::mem::size_of::<f32>() * Operator::SIZE];
+        for (vb, v) in buf.chunks_mut(std::mem::size_of::<f32>()).zip(self.v.iter()) {
+            vb.copy_from_slice(&v.to_le_bytes());
+        }
+        buf
     }
 }
