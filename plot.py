@@ -37,9 +37,9 @@ plt.imshow(np.swapaxes(data, 0, 1), origin='upper', extent=[0, t.max(), float(st
 plt.xlabel("Time")
 plt.ylabel("States")
 plt.yticks(ticks=(np.arange(state_count)+0.5),
-           labels = [FORMAT_STRING.format(i) for i in np.arange(state_count)]
-           )
+           labels = [FORMAT_STRING.format(i) for i in np.arange(state_count)])
 plt.grid()
+plt.colorbar()
 plt.show()
 
 

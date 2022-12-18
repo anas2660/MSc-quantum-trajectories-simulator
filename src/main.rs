@@ -30,7 +30,7 @@ const ZERO: cf32 = Complex::new(0.0, 0.0);
 const dt: f32 = 0.03;
 const STEP_COUNT: u32 = 300;
 const THREAD_COUNT: u32 = 10;
-const SIMULATIONS_PER_THREAD: u32 = 100;
+const SIMULATIONS_PER_THREAD: u32 = 1000;
 const SIMULATION_COUNT: u32 = THREAD_COUNT*SIMULATIONS_PER_THREAD;
 
 // From qutip implementation
@@ -380,8 +380,6 @@ let gamma_phi = {gamma_phi};
         let total_time = now.elapsed().as_micros();
 
         println!("Thread {thread_id} finished {} simulations in {} μs ({} μs/sim)", SIMULATIONS_PER_THREAD, total_time, total_time/SIMULATIONS_PER_THREAD as u128);
-
-
 
         for s in local_trajectory_sum.iter_mut() {
             s.divide(SIMULATIONS_PER_THREAD as f32);

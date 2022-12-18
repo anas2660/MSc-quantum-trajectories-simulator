@@ -378,7 +378,7 @@ impl StateProbabilitiesSimd {
 }
 
 impl StateProbabilities {
-    pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<f32>()*Operator::SIZE] {
+    pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<f32>() * Operator::SIZE] {
         let mut buf = [0u8; std::mem::size_of::<f32>() * Operator::SIZE];
         for (vb, v) in buf.chunks_mut(std::mem::size_of::<f32>()).zip(self.v.iter()) {
             vb.copy_from_slice(&v.to_le_bytes());
