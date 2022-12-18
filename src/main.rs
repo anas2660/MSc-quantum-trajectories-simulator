@@ -375,7 +375,7 @@ let gamma_phi = {gamma_phi};
         local_trajectories
     })).collect();
 
-    let mut trajectories = [[Real::splat(0.0); Operator::SIZE]; STEP_COUNT as usize];
+    let mut trajectories = [[Real::splat(0.0); Operator::SIZE]; (STEP_COUNT+1) as usize];
 
     // Wait for threads
     for tt in threads {
@@ -389,9 +389,9 @@ let gamma_phi = {gamma_phi};
     }
 
 
-    let mut trajectory = [[0f32; Operator::SIZE]; STEP_COUNT as usize];
+    let mut trajectory = [[0f32; Operator::SIZE]; (STEP_COUNT+1) as usize];
     for (result, s) in trajectory.iter_mut().zip(trajectories.iter()) {
-        // TODO: fix magic number
+        // TODO: fix magic number (simcount)
         *result = s.map(|sv| sv.as_array().iter().sum::<f32>()/(Real::LANES as f32 * 1000.0) );
     }
 
@@ -408,6 +408,13 @@ let gamma_phi = {gamma_phi};
         buf[12..16].copy_from_slice(&state[3].to_le_bytes());
 
         data_file.write(&buf).unwrap();
+    }
+
+    // TODO: actual time
+    // TODO: fix magic number (simcount)
+    for i in (0..=STEP_COUNT) {
+        let t = i as f32 * dt;
+        data_file.write(&t.to_le_bytes()).unwrap();
     }
 
 }

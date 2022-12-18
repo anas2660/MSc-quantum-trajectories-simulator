@@ -11,24 +11,36 @@ data_buffer = open(filename, "rb").read()
 data = np.frombuffer(data_buffer, np.float32, offset=12)
 metadata = np.frombuffer(data_buffer, np.uint32, count=3)
 
-data = np.reshape(data, (metadata[0], metadata[2], metadata[1]))
+simulation_count = metadata[0]
+state_count = metadata[1]
+step_count = metadata[2]
 
-errors = np.std(data, axis=0)
-data = np.average(data, axis=0)
-plt.plot(data[:, 0], linewidth=3, label='00')
-plt.plot(data[:, 1], linewidth=3, label='01')
-plt.plot(data[:, 2], linewidth=3, label='10')
-plt.plot(data[:, 3], linewidth=3, label='11')
+t = data[step_count*state_count:]
+data = np.reshape(data[0:step_count*state_count], (step_count, state_count))
+
+#errors = np.std(data, axis=0)
+# data = np.average(data, axis=0)
+
+FORMAT_STRING = '|{0:0' + str(int(np.log2(state_count))) + 'b}>'
+
+for i in np.arange(state_count):
+    plt.plot(t, data[:, i], linewidth=3, label=FORMAT_STRING.format(i))
+
 # plt.plot(np.sum(data, axis=1), linewidth=3)
 plt.legend()
 plt.grid()
+plt.xticks(np.arange(np.ceil(t.max())+1))
 plt.show()
 
+print(state_count)
 
-plt.imshow(np.swapaxes(data, 0, 1), origin='upper', extent=[-1, 1, -1, 1], aspect='auto')
+
+plt.imshow(np.swapaxes(data, 0, 1), origin='upper', extent=[0, t.max(), float(state_count), 0], aspect='auto')
 plt.xlabel("Time")
 plt.ylabel("States")
-plt.yticks(ticks=(np.array([3,2,1,0])-1.0)/2.0 - 0.25, labels=['|00>','|01>','|10>','|11>'])
+plt.yticks(ticks=(np.arange(state_count)+0.5),
+           labels = [FORMAT_STRING.format(i) for i in np.arange(state_count)]
+           )
 plt.grid()
 plt.show()
 
@@ -44,7 +56,7 @@ HIST_BINS = 125
 
 
 # TODO fix memory leak
-if 0:
+if False:
     for i in range(0, frame_count, 1):
         #gc.collect()
         fig, ax = plt.subplots(tight_layout=True, figsize=(10,4))
