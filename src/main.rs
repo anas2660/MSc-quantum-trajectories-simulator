@@ -10,7 +10,7 @@ mod matrix;
 use matrix::*;
 
 use rand_distr::StandardNormal;
-use std::io::Write;
+use std::{io::Write, simd::{self, SimdPartialOrd, ToBitMask}};
 
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
@@ -22,39 +22,23 @@ use pipewriter::*;
 #[allow(non_camel_case_types)]
 type cf32 = Complex;
 
-const HALF: cf32 = Complex::new(0.5, 0.0);
 const ONE: cf32 = Complex::new(1.0, 0.0);
-const MINUS_ONE: cf32 = Complex::new(-1.0, 0.0);
 const I: cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.01;
-const STEP_COUNT: u32 = 1000;
+const dt: f32 = 0.03;
+const STEP_COUNT: u32 = 300;
 const SIMULATION_COUNT: u32 = 1000;
 
 // From qutip implementation
-macro_rules! lowering {
-    ($D:expr) => {
-        SMatrix::<f32, $D, $D>::from_fn(|r, c| if r + 1 == c { (c as f32).sqrt() } else { 0.0 })
-    };
-}
-
-//#[inline]
-//fn cscale(c: cf32, m: Operator) -> Operator {
-//    m.component_mul(&Operator::from_element(c))
+//macro_rules! lowering {
+//    ($D:expr) => {
+//        SMatrix::<f32, $D, $D>::from_fn(|r, c| if r + 1 == c { (c as f32).sqrt() } else { 0.0 })
+//    };
 //}
 
-#[inline]
-fn cscale(c: cf32, m: Operator) -> Operator {
-    c * &m
-    //m.component_mul(&Operator::from_element(c))
-}
-
-// fn cscale4(c: cf32, m: SMatrix<cf32, 4, 4>) -> SMatrix<cf32, 4, 4> {
-//     m.component_mul(&SMatrix::<cf32, 4, 4>::from_element(c))
-// }
-
+//#[allow(unsued)]
 struct QubitSystem {
     hamiltonian: Operator,
     rho: Operator,
@@ -81,11 +65,6 @@ fn anticommutator(a: Operator, b: Operator) -> Operator {
     &(a * b) + &(b * a)
 }
 
-#[inline]
-fn half(operator: Operator) -> Operator {
-    0.5 * operator
-}
-
 impl QubitSystem {
     fn new(
         A: Operator,
@@ -100,17 +79,13 @@ impl QubitSystem {
         gamma_dec: f32,
         gamma_phi: f32,
     ) -> Self {
-        let alpha = (2.0 * kappa_1).sqrt() / (kappa + I * delta_r) * beta;
         let ddelta = delta_r - delta_s;
-        let epsilon_s = g * g * ddelta / (kappa * kappa + ddelta * ddelta);
-        //let a = cscale((2.0 * kappa_1).sqrt() / (kappa + I * delta_r), beta)
-        //    - cscale(I * g / (kappa + I * ddelta), sigma_minus);
-        let delta_e = 1.0;
         let chi = 0.6;
-        let omega = 1.0;
+        let omega = 3.0;
 
-        let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
+        #[allow(unused_variables)]
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
+        let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
         let sigma_minus: Matrix = Matrix::new(0.0, 0.0, 1.0, 0.0);
 
         let a = Matrix::from_partial_diagonal(&[
@@ -120,8 +95,11 @@ impl QubitSystem {
 
         let N = a.dagger() * &a;
 
-        let one  = Matrix::vector(&[1., 0.]);
-        let zero = Matrix::vector(&[0., 1.]);
+        let zero = Matrix::vector(&[1., 0.]);
+        let one  = Matrix::vector(&[0., 1.]);
+
+        let bra = |m: &Matrix| { m.dagger() };
+        let ket = |m: &Matrix| { m.clone() };
 
         let identity = Matrix::identity(2);
         let hamiltonian =
@@ -131,56 +109,32 @@ impl QubitSystem {
             + I * (2.0 * kappa_1).sqrt() * beta * a.dagger() - beta.conjugate() * &a // Detuning
             + chi * &N * &sigma_z
             + chi*(&sigma_z + &identity)
-            + omega * (&one*zero.transpose() + &zero*&one.transpose()) // ω(|1X0| + |0X1|)
-            + &one * one.transpose() * omega * (&one*zero.transpose() + &zero*&one.transpose()) // CNOT
+            //+ omega * (ket(&one)*bra(&zero) + ket(&zero)*bra(&one)) // ω(|1X0| + |0X1|)
             ;
 
 
         let hamiltonian = (hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator();
 
-        let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
-        // let c_1 = cscale(gamma_p.sqrt(), sigma_minus);
-        // let c_2 = cscale(gamma_p.sqrt(), sigma_plus);
-        // let hamiltonian = hamilt17onian;
-        //    - cscale(0.5*I, c_1.ad_mul(&c_1));
-        //    - cscale(0.5*I, c_2.ad_mul(&c_2));
+        // CNOT 0, 1
+        let hamiltonian = hamiltonian
+            +
+            omega*(&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator()
+            //omega*(&(ket(&zero)*bra(&zero))).kronecker(&identity).to_operator()
+            ;
 
-        //let psi = Vector2::<cf32>::new(ONE, ZERO);
-        //let rho = psi.mul(&psi.transpose());
-
-        //let small_rho = Matrix::new(1.0, 0.0, 0.0, 0.);
-        //let rho = small_rho.kronecker(&small_rho).to_operator();
-        //let rho = zero.kronecker(&(&zero * &zero.transpose()).kronecker(&zero.transpose())).to_operator();
-        //let rho = (small_rho.kronecker(&identity) + identity.kronecker(&small_rho)).to_operator();
-        //let rho = rho/rho.trace();
+        // let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
 
         // 00  0.5
         // 01  0
         // 10  0.5
         // 11  0
-
         let psi = Matrix::vector(&[f32::sqrt(0.5), 0.0, f32::sqrt(0.5), 0.0]);
         let rho = (&psi * &psi.transpose()).to_operator();
 
-        //println!("{rho}");
-        //panic!();
+        // println!("{rho}");
 
-
-        //let rho = Vector4::<cf32>::new(
-        //    *rho.index((0, 0)),
-        //    *rho.index((0, 1)),
-        //    *rho.index((1, 0)),
-        //    *rho.index((1, 1)),
-        //);
-
-        //let hamiltonian = cscale(MINUS_I, hamiltonian);
         let c_out =
             (kappa_1 * 2.0).sqrt() * a.kronecker(&a).to_operator() - beta * Operator::identity();
-
-        //let Ls = tensor_dot(A, A.adjoint())
-        //    - tensor_dot(Operator::identity().scale(0.5), A * (A.adjoint()))
-        //    - tensor_dot((A * A.adjoint()).scale(0.5), Operator::identity());
-
         let c1 = (2.0 * kappa).sqrt() * a.kronecker(&a).to_operator();
         let c2 = gamma_dec.sqrt() * sigma_minus.kronecker(&sigma_minus).to_operator();
         let c3 = (gamma_phi / 2.0).sqrt() * sigma_z.kronecker(&sigma_z).to_operator();
@@ -218,7 +172,7 @@ impl QubitSystem {
             + I * self.rho * self.c_out_phased.adjoint()
             - ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace() * self.rho;
 
-        let a = self.measurement;
+        // let a = self.measurement;
         (
             MINUS_I * commutator(self.hamiltonian, rho)
                 //+ self.lindblad(a)
@@ -261,6 +215,7 @@ fn simulate() {
 
     //let gamma = SMatrix::<cf32, 4, 4>::from_diagonal_element(ONE);
 
+
     let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
     let delta_s = 1.0;
     let g = 2.0;
@@ -268,10 +223,11 @@ fn simulate() {
     let kappa = 10.0;
     let beta = ONE;
     let delta_r = 0.0;
-    let eta = 0.5;
+    let eta = 0.4;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
+    let aaa = 3.3/2.0;
 
     parameter_file
         .write_all(
@@ -302,7 +258,8 @@ let gamma_phi = {gamma_phi};
     // metadata
     //current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
     //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
-    data_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
+    data_file.write(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
+    data_file.write(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
     for simulation in 0..1000 {
@@ -324,7 +281,11 @@ let gamma_phi = {gamma_phi};
             //data_file
             //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
             //    .unwrap();
-            trajectory.push(system.rho[(0, 0)].real()[0]);
+            trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
+
+            // TODO: DELETE
+            //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
+
 
             // Sample on the normal distribution.
             {
@@ -341,6 +302,7 @@ let gamma_phi = {gamma_phi};
             system.runge_kutta(dt);
 
             // Normalize rho.
+            //println!("Trace: {}", system.rho.trace());
             system.rho = system.rho / system.rho.trace();
 
             // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
@@ -366,10 +328,11 @@ let gamma_phi = {gamma_phi};
 
             t += dt;
         }
-        //panic!();
 
         // Write last state.
-        trajectory.push(system.rho[(0, 0)].real()[0]);
+        //trajectory.push(system.rho[(0, 0)].real()[0]);
+        trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
+
 
         //data_file
         //    .write(format!("{}\n", system.rho[(0, 0)].real()).as_bytes())
@@ -378,14 +341,26 @@ let gamma_phi = {gamma_phi};
 
         println!("Sim ({simulation}) time: {} us", now.elapsed().as_micros());
 
-        data_file
-            .write(unsafe {
-                std::slice::from_raw_parts(
-                    trajectory.as_ptr() as *const u8,
-                    trajectory.len() * std::mem::size_of::<f32>(),
-                )
-            })
-            .unwrap();
+        //data_file
+        //    .write(unsafe {
+        //        std::slice::from_raw_parts(
+        //            trajectory.as_ptr() as *const u8,
+        //            trajectory.len() * std::mem::size_of::<f32>(),
+        //        )
+        //    })
+        //    .unwrap();
+        for i in 0..Real::LANES {
+            for state in trajectory.iter() {
+                let mut buf: [u8; 4*4] = [0; 16];
+
+                buf[0..4].copy_from_slice(&state[0][i].to_le_bytes());
+                buf[4..8].copy_from_slice(&state[1][i].to_le_bytes());
+                buf[8..12].copy_from_slice(&state[2][i].to_le_bytes());
+                buf[12..16].copy_from_slice(&state[3][i].to_le_bytes());
+
+                data_file.write(&buf).unwrap();
+            }
+        }
 
         //current_file
         //    .write(unsafe {
@@ -415,14 +390,6 @@ fn bloch_vector(rho: &Operator) -> [f32; 3] {
 }
 
 fn main() {
-    //let other_sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
-    //println!("other_sigma_z: \n{other_sigma_z}");
-    //let mut ident = Matrix::identity(3);
-    //ident[(0,1)] = ONE;
-    //println!("ident: \n{ident}");
-    //let prod = ident.kronecker(&other_sigma_z);
-    //println!("prod: \n{prod}");
-
     println!("Starting simulation...");
     simulate();
 }

@@ -1,10 +1,11 @@
+#[allow(unused_imports)]
 use std::{
     arch::asm,
     arch::x86_64::__m256,
     fmt::Display,
     iter::Sum,
-    mem::{swap, MaybeUninit},
-    ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign},
+    mem::MaybeUninit,
+    ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
     simd::f32x8,
 };
 
