@@ -32,8 +32,6 @@ plt.grid()
 plt.xticks(np.arange(np.ceil(t.max())+1))
 plt.show()
 
-print(state_count)
-
 
 plt.imshow(np.swapaxes(data, 0, 1), origin='upper', extent=[0, t.max(), float(state_count), 0], aspect='auto')
 plt.xlabel("Time")

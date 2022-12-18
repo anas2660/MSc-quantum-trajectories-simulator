@@ -29,7 +29,9 @@ const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 const dt: f32 = 0.03;
 const STEP_COUNT: u32 = 300;
-const SIMULATION_COUNT: u32 = 1000;
+const THREAD_COUNT: u32 = 10;
+const SIMULATIONS_PER_THREAD: u32 = 100;
+const SIMULATION_COUNT: u32 = THREAD_COUNT*SIMULATIONS_PER_THREAD;
 
 // From qutip implementation
 //macro_rules! lowering {
@@ -223,7 +225,7 @@ fn simulate() {
     let kappa = 10.0;
     let beta = ONE;
     let delta_r = 0.0;
-    let eta = 0.4;
+    let eta = 0.5;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;
@@ -261,10 +263,10 @@ let gamma_phi = {gamma_phi};
     data_file.write(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
-    let threads: Vec<_> = (0..10).map(|thread_id| std::thread::spawn(move || {
+    let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
         let mut local_trajectories = Vec::new();
 
-        for simulation in 0..100 {
+        for simulation in 0..SIMULATIONS_PER_THREAD {
             let mut trajectory = Vec::new();
             // Initialize system
             let mut system = QubitSystem::new(
@@ -342,8 +344,7 @@ let gamma_phi = {gamma_phi};
             //    .unwrap();
             //current_file.write(b"\n").unwrap();
 
-            // TODO: FIX SIMCOUNT
-            println!("Sim ({}) time: {} us", thread_id*100 + simulation, now.elapsed().as_micros());
+            println!("Sim ({}) time: {} us", thread_id*SIMULATIONS_PER_THREAD + simulation, now.elapsed().as_micros());
 
             //data_file
             //    .write(unsafe {
@@ -388,31 +389,25 @@ let gamma_phi = {gamma_phi};
         }
     }
 
-
     let mut trajectory = [[0f32; Operator::SIZE]; (STEP_COUNT+1) as usize];
     for (result, s) in trajectory.iter_mut().zip(trajectories.iter()) {
-        // TODO: fix magic number (simcount)
-        *result = s.map(|sv| sv.as_array().iter().sum::<f32>()/(Real::LANES as f32 * 1000.0) );
+        *result = s.map(|sv| sv.as_array().iter().sum::<f32>()/(Real::LANES as f32 * SIMULATION_COUNT as f32) );
     }
 
 
     // write average trajectory
-    // TODO: fix magic numbers
-    // TODO: make dynamic
     for state in trajectory.iter() {
-        let mut buf: [u8; 4*4] = [0; 16];
-
-        buf[0..4].copy_from_slice(&state[0].to_le_bytes());
-        buf[4..8].copy_from_slice(&state[1].to_le_bytes());
-        buf[8..12].copy_from_slice(&state[2].to_le_bytes());
-        buf[12..16].copy_from_slice(&state[3].to_le_bytes());
+        let mut buf = [0u8; std::mem::size_of::<f32>() * Operator::SIZE];
+        for (vb, v) in buf.chunks_mut(std::mem::size_of::<f32>()).zip(state.iter()) {
+            vb.copy_from_slice(&v.to_le_bytes());
+        }
 
         data_file.write(&buf).unwrap();
     }
 
     // TODO: actual time
     // TODO: fix magic number (simcount)
-    for i in (0..=STEP_COUNT) {
+    for i in 0..=STEP_COUNT {
         let t = i as f32 * dt;
         data_file.write(&t.to_le_bytes()).unwrap();
     }
