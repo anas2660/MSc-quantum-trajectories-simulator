@@ -252,8 +252,7 @@ let gamma_phi = {gamma_phi};
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
     pipe.write_u32(STEP_COUNT);
 
-    let mut trajectory = Vec::new();
-    let mut signal = Vec::new();
+    ////////let mut signal = Vec::new();
 
     // metadata
     //current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
@@ -262,122 +261,155 @@ let gamma_phi = {gamma_phi};
     data_file.write(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
-    for simulation in 0..1000 {
-        // Initialize system
-        let mut system = QubitSystem::new(
-            A, delta_s, g, kappa_1, kappa, beta, delta_r, eta, Phi, gamma_dec, gamma_phi,
-        );
+    let threads: Vec<_> = (0..10).map(|thread_id| std::thread::spawn(move || {
+        let mut local_trajectories = Vec::new();
 
-        // Start the timer.
-        let now = std::time::Instant::now();
-        let mut t = dt;
+        for simulation in 0..100 {
+            let mut trajectory = Vec::new();
+            // Initialize system
+            let mut system = QubitSystem::new(
+                A, delta_s, g, kappa_1, kappa, beta, delta_r, eta, Phi, gamma_dec, gamma_phi,
+            );
 
-        //current_file.write(b"0.0, 0.0").unwrap();
-        //current_file.write(&[0u8; 8]).unwrap();
+            // Start the timer.
+            let now = std::time::Instant::now();
+            let mut t = dt;
 
-        // Do 2000 steps.
-        for _ in 0..STEP_COUNT {
-            // Write current state.
-            //data_file
-            //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
-            //    .unwrap();
+            //current_file.write(b"0.0, 0.0").unwrap();
+            //current_file.write(&[0u8; 8]).unwrap();
+
+            // Do 2000 steps.
+            for _ in 0..STEP_COUNT {
+                // Write current state.
+                //data_file
+                //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
+                //    .unwrap();
+                trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
+
+                // TODO: DELETE
+                //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
+
+
+                // Sample on the normal distribution.
+                {
+                    for lane in 0..Real::LANES {
+                        system.dW[0][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                        system.dW[1][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                    }
+                    let c = Real::splat(1.0 / dt.sqrt());
+                    system.dW[0] *= c;
+                    system.dW[1] *= c;
+                }
+
+                // Do the runge-kutta4 step.
+                system.runge_kutta(dt);
+
+                // Normalize rho.
+                //println!("Trace: {}", system.rho.trace());
+                system.rho = system.rho / system.rho.trace();
+
+                // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
+
+                ////////if pipe.is_opened() {
+                ////////    let bv = bloch_vector(&system.rho);
+                ////////    //let f = |c: Complex| {
+                ////////    //    let (r, i) = c.first();
+                ////////    //    (r*r + i*i).sqrt()
+                ////////    //};
+                ////////    //pipe.write_vec3([f(system.rho[(0,0)]), f(system.rho[(1,1)]), f(system.rho[(1,1)])]);
+                ////////    pipe.write_vec3(bv);
+                ////////    //dbg!(&bv);
+                ////////}
+
+                // Calculate integrated current
+                let zeta = system.Y * (1.0 / t.sqrt());
+
+                //current_file
+                //    .write(format!(", {}, {}", zeta.real(), zeta.imag()).as_bytes())
+                //    .unwrap();
+                ////////signal.push(zeta);
+
+                t += dt;
+            }
+
+            // Write last state.
+            //trajectory.push(system.rho[(0, 0)].real()[0]);
             trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
 
-            // TODO: DELETE
-            //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
 
+            //data_file
+            //    .write(format!("{}\n", system.rho[(0, 0)].real()).as_bytes())
+            //    .unwrap();
+            //current_file.write(b"\n").unwrap();
 
-            // Sample on the normal distribution.
-            {
-                for lane in 0..Real::LANES {
-                    system.dW[0][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
-                    system.dW[1][lane] = system.rng.sample::<f32, StandardNormal>(StandardNormal);
-                }
-                let c = Real::splat(1.0 / dt.sqrt());
-                system.dW[0] *= c;
-                system.dW[1] *= c;
-            }
+            // TODO: FIX SIMCOUNT
+            println!("Sim ({}) time: {} us", thread_id*100 + simulation, now.elapsed().as_micros());
 
-            // Do the runge-kutta4 step.
-            system.runge_kutta(dt);
+            //data_file
+            //    .write(unsafe {
+            //        std::slice::from_raw_parts(
+            //            trajectory.as_ptr() as *const u8,
+            //            trajectory.len() * std::mem::size_of::<f32>(),
+            //        )
+            //    })
+            //    .unwrap();
 
-            // Normalize rho.
-            //println!("Trace: {}", system.rho.trace());
-            system.rho = system.rho / system.rho.trace();
-
-            // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
-
-            if pipe.is_opened() {
-                let bv = bloch_vector(&system.rho);
-                //let f = |c: Complex| {
-                //    let (r, i) = c.first();
-                //    (r*r + i*i).sqrt()
-                //};
-                //pipe.write_vec3([f(system.rho[(0,0)]), f(system.rho[(1,1)]), f(system.rho[(1,1)])]);
-                pipe.write_vec3(bv);
-                //dbg!(&bv);
-            }
-
-            // Calculate integrated current
-            let zeta = system.Y * (1.0 / t.sqrt());
 
             //current_file
-            //    .write(format!(", {}, {}", zeta.real(), zeta.imag()).as_bytes())
+            //    .write(unsafe {
+            //        std::slice::from_raw_parts(
+            //            signal.as_ptr() as *const u8,
+            //            signal.len() * std::mem::size_of::<cf32>(),
+            //        )
+            //    })
             //    .unwrap();
-            signal.push(zeta);
 
-            t += dt;
+            ////////trajectory.clear();
+            local_trajectories.push(trajectory);
+            ////////signal.clear();
+
+            ////////if pipe.is_opened() {
+            ////////    break;
+            ////////}
         }
+        local_trajectories
+    })).collect();
 
-        // Write last state.
-        //trajectory.push(system.rho[(0, 0)].real()[0]);
-        trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
+    let mut trajectories = [[Real::splat(0.0); Operator::SIZE]; STEP_COUNT as usize];
 
-
-        //data_file
-        //    .write(format!("{}\n", system.rho[(0, 0)].real()).as_bytes())
-        //    .unwrap();
-        //current_file.write(b"\n").unwrap();
-
-        println!("Sim ({simulation}) time: {} us", now.elapsed().as_micros());
-
-        //data_file
-        //    .write(unsafe {
-        //        std::slice::from_raw_parts(
-        //            trajectory.as_ptr() as *const u8,
-        //            trajectory.len() * std::mem::size_of::<f32>(),
-        //        )
-        //    })
-        //    .unwrap();
-        for i in 0..Real::LANES {
-            for state in trajectory.iter() {
-                let mut buf: [u8; 4*4] = [0; 16];
-
-                buf[0..4].copy_from_slice(&state[0][i].to_le_bytes());
-                buf[4..8].copy_from_slice(&state[1][i].to_le_bytes());
-                buf[8..12].copy_from_slice(&state[2][i].to_le_bytes());
-                buf[12..16].copy_from_slice(&state[3][i].to_le_bytes());
-
-                data_file.write(&buf).unwrap();
+    // Wait for threads
+    for tt in threads {
+        for trajectory in tt.join().unwrap().iter() {
+            for (out, cur) in trajectories.iter_mut().zip(trajectory.iter()) {
+                for i in 0..Operator::SIZE {
+                    out[i] += cur[i];
+                }
             }
         }
-
-        //current_file
-        //    .write(unsafe {
-        //        std::slice::from_raw_parts(
-        //            signal.as_ptr() as *const u8,
-        //            signal.len() * std::mem::size_of::<cf32>(),
-        //        )
-        //    })
-        //    .unwrap();
-
-        trajectory.clear();
-        signal.clear();
-
-        if pipe.is_opened() {
-            break;
-        }
     }
+
+
+    let mut trajectory = [[0f32; Operator::SIZE]; STEP_COUNT as usize];
+    for (result, s) in trajectory.iter_mut().zip(trajectories.iter()) {
+        // TODO: fix magic number
+        *result = s.map(|sv| sv.as_array().iter().sum::<f32>()/(Real::LANES as f32 * 1000.0) );
+    }
+
+
+    // write average trajectory
+    // TODO: fix magic numbers
+    // TODO: make dynamic
+    for state in trajectory.iter() {
+        let mut buf: [u8; 4*4] = [0; 16];
+
+        buf[0..4].copy_from_slice(&state[0].to_le_bytes());
+        buf[4..8].copy_from_slice(&state[1].to_le_bytes());
+        buf[8..12].copy_from_slice(&state[2].to_le_bytes());
+        buf[12..16].copy_from_slice(&state[3].to_le_bytes());
+
+        data_file.write(&buf).unwrap();
+    }
+
 }
 
 fn bloch_vector(rho: &Operator) -> [f32; 3] {
