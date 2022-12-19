@@ -28,9 +28,9 @@ const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 const dt: f32 = 0.03;
-const STEP_COUNT: u32 = 300;
+const STEP_COUNT: u32 = 400;
 const THREAD_COUNT: u32 = 10;
-const SIMULATIONS_PER_THREAD: u32 = 1000;
+const SIMULATIONS_PER_THREAD: u32 = 100;
 const SIMULATION_COUNT: u32 = THREAD_COUNT*SIMULATIONS_PER_THREAD;
 
 // From qutip implementation
@@ -83,7 +83,7 @@ impl QubitSystem {
     ) -> Self {
         let ddelta = delta_r - delta_s;
         let chi = 0.6;
-        let omega = 3.0;
+        let omega = 10.0;
 
         #[allow(unused_variables)]
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
@@ -119,10 +119,7 @@ impl QubitSystem {
 
         // CNOT 0, 1
         let hamiltonian = hamiltonian
-            +
-            omega*(&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator()
-            //omega*(&(ket(&zero)*bra(&zero))).kronecker(&identity).to_operator()
-            ;
+            + omega * (&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
         // let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
 
@@ -336,27 +333,8 @@ let gamma_phi = {gamma_phi};
             }
 
             // Write last state.
-            //trajectory.push(system.rho[(0, 0)].real()[0]);
             trajectory[STEP_COUNT as usize] = system.rho.get_probabilites_simd();
             local_trajectory_sum[STEP_COUNT as usize].add(&trajectory[STEP_COUNT as usize]);
-
-            //trajectory.push([system.rho[(0, 0)].real(),system.rho[(1, 1)].real(),system.rho[(2, 2)].real(),system.rho[(3, 3)].real()]);
-
-
-            //data_file
-            //    .write(format!("{}\n", system.rho[(0, 0)].real()).as_bytes())
-            //    .unwrap();
-            //current_file.write(b"\n").unwrap();
-
-
-            //data_file
-            //    .write(unsafe {
-            //        std::slice::from_raw_parts(
-            //            trajectory.as_ptr() as *const u8,
-            //            trajectory.len() * std::mem::size_of::<f32>(),
-            //        )
-            //    })
-            //    .unwrap();
 
 
             //current_file
@@ -368,8 +346,7 @@ let gamma_phi = {gamma_phi};
             //    })
             //    .unwrap();
 
-            ////////trajectory.clear();
-            //local_trajectories.push(trajectory);
+
 
             ////////signal.clear();
 
