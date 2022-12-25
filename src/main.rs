@@ -8,6 +8,8 @@ mod operator;
 use operator::*;
 mod matrix;
 use matrix::*;
+mod histogram;
+use histogram::*;
 
 use rand_distr::StandardNormal;
 use std::{io::Write, simd::{self, SimdPartialOrd, ToBitMask}};
@@ -30,7 +32,7 @@ const ZERO: cf32 = Complex::new(0.0, 0.0);
 const dt: f32 = 0.03;
 const STEP_COUNT: u32 = 400;
 const THREAD_COUNT: u32 = 10;
-const SIMULATIONS_PER_THREAD: u32 = 100;
+const SIMULATIONS_PER_THREAD: u32 = 1000;
 const SIMULATION_COUNT: u32 = THREAD_COUNT*SIMULATIONS_PER_THREAD;
 
 // From qutip implementation
@@ -255,17 +257,26 @@ let gamma_phi = {gamma_phi};
     // metadata
     //current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
     //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
-    data_file.write(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
-    data_file.write(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
-    data_file.write(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
+    data_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
+    data_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
+    data_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
+
+    struct ThreadResult {
+        trajectory_sum:  [StateProbabilitiesSimd; STEP_COUNT as usize+1],
+        trajectory_hist: [[Histogram<10>; Operator::SIZE]; STEP_COUNT as usize+1],
+    }
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
-        let mut local_trajectory_sum = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1];
+        let mut local = ThreadResult {
+            trajectory_sum: [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1],
+            trajectory_hist: [[Histogram::new(); Operator::SIZE]; STEP_COUNT as usize+1]
+        };
+
         // Start the timer.
         let now = std::time::Instant::now();
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
-            let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
+            //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
 
             // Initialize system
             let mut system = QubitSystem::new(
@@ -283,8 +294,12 @@ let gamma_phi = {gamma_phi};
                 //data_file
                 //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
                 //    .unwrap();
-                trajectory[step] = system.rho.get_probabilites_simd();
-                local_trajectory_sum[step].add(&trajectory[step]);
+                //// trajectory[step] = system.rho.get_probabilites_simd();
+                let P = system.rho.get_probabilites_simd();
+                local.trajectory_sum[step].add(&P);
+                for (i, p) in P.v.iter().enumerate() {
+                    local.trajectory_hist[step][i].add_values(p);
+                }
 
                 // TODO: DELETE
                 //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
@@ -333,8 +348,13 @@ let gamma_phi = {gamma_phi};
             }
 
             // Write last state.
-            trajectory[STEP_COUNT as usize] = system.rho.get_probabilites_simd();
-            local_trajectory_sum[STEP_COUNT as usize].add(&trajectory[STEP_COUNT as usize]);
+            //// trajectory[STEP_COUNT as usize] = system.rho.get_probabilites_simd();
+            let P = system.rho.get_probabilites_simd();
+            local.trajectory_sum[STEP_COUNT as usize].add(&P);
+            for (i, p) in P.v.iter().enumerate() {
+                local.trajectory_hist[STEP_COUNT as usize][i].add_values(p);
+            }
+
 
 
             //current_file
@@ -358,25 +378,34 @@ let gamma_phi = {gamma_phi};
 
         println!("Thread {thread_id} finished {} simulations in {} μs ({} μs/sim)", SIMULATIONS_PER_THREAD, total_time, total_time/SIMULATIONS_PER_THREAD as u128);
 
-        for s in local_trajectory_sum.iter_mut() {
+        for s in local.trajectory_sum.iter_mut() {
             s.divide(SIMULATIONS_PER_THREAD as f32);
         }
 
-        local_trajectory_sum
+        local
     })).collect();
 
     let mut trajectory_average = [StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize];
+    let mut trajectory_histograms = [[Histogram::<10>::new(); Operator::SIZE]; STEP_COUNT as usize+1];
 
     // Wait for threads
     for tt in threads {
-        let local_trajectory_average = tt.join().unwrap();
-        for (s, ls) in trajectory_average.iter_mut().zip(local_trajectory_average.iter()) {
+        let local = tt.join().unwrap();
+        for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
             s.add(ls);
         }
+
+        for (histograms, local_histograms) in trajectory_histograms.iter_mut().zip(local.trajectory_hist.iter()) {
+            for (histogram, local_histogram) in histograms.iter_mut().zip(local_histograms.iter()) {
+                histogram.add_histogram(local_histogram);
+            }
+        }
+
     }
+
     for s in trajectory_average.iter_mut() {
         s.divide(THREAD_COUNT as f32);
-        data_file.write(&s.average().to_le_bytes()).unwrap();
+        data_file.write_all(&s.average().to_le_bytes()).unwrap();
     }
 
 
@@ -384,7 +413,7 @@ let gamma_phi = {gamma_phi};
     // TODO: fix magic number (simcount)
     for i in 0..=STEP_COUNT {
         let t = i as f32 * dt;
-        data_file.write(&t.to_le_bytes()).unwrap();
+        data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
 }
@@ -392,13 +421,23 @@ let gamma_phi = {gamma_phi};
 fn bloch_vector(rho: &Operator) -> [f32; 3] {
     const OFFSET: usize = 0;
     [
-        rho[(0 + OFFSET, 1 + OFFSET)].real()[0] + rho[(1 + OFFSET, 0 + OFFSET)].real()[0],
-        rho[(0 + OFFSET, 1 + OFFSET)].imag()[0] - rho[(1 + OFFSET, 0 + OFFSET)].imag()[0],
-        rho[(0 + OFFSET, 0 + OFFSET)].real()[0] - rho[(1 + OFFSET, 1 + OFFSET)].real()[0],
+        rho[(OFFSET, 1 + OFFSET)].real()[0] + rho[(1 + OFFSET, 0 + OFFSET)].real()[0],
+        rho[(OFFSET, 1 + OFFSET)].imag()[0] - rho[(1 + OFFSET, 0 + OFFSET)].imag()[0],
+        rho[(OFFSET, 0 + OFFSET)].real()[0] - rho[(1 + OFFSET, 1 + OFFSET)].real()[0],
     ]
 }
 
 fn main() {
     println!("Starting simulation...");
+
+    let start = std::time::Instant::now();
     simulate();
+    let elapsed = start.elapsed().as_millis();
+
+    println!(
+        "Simulations took {elapsed} ms ({} sim/s, {} steps/s)",
+        (1000*SIMULATION_COUNT*Real::LANES as u32) as f32 / elapsed as f32,
+        (1000*SIMULATION_COUNT as u64 * STEP_COUNT as u64 * Real::LANES as u64) as u128 / elapsed
+    );
+
 }
