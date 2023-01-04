@@ -233,7 +233,7 @@ fn simulate() {
     let mut hist_file =
         std::fs::File::create(format!("results/{timestamp}_hist.dat")).unwrap();
     let mut current_file =
-        std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
+        std::fs::File::create(format!("results/{timestamp}_currents.dat")).unwrap();
 
     //let gamma = SMatrix::<cf32, 4, 4>::from_diagonal_element(ONE);
 
@@ -265,7 +265,7 @@ let gamma_dec = {gamma_dec};
 let gamma_phi = {gamma_phi};
 "
             )
-            .as_bytes(),
+                .as_bytes(),
         )
         .unwrap();
 
@@ -453,7 +453,6 @@ let gamma_phi = {gamma_phi};
 
     let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize].into_boxed_slice();
     let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1]);
-
 
     // Wait for threads
     for tt in threads {
