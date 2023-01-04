@@ -29,11 +29,12 @@ const I: cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.03;
+const dt: f32 = 0.01;
 const STEP_COUNT: u32 = 400;
 const THREAD_COUNT: u32 = 10;
 const SIMULATIONS_PER_THREAD: u32 = 1000;
 const SIMULATION_COUNT: u32 = THREAD_COUNT*SIMULATIONS_PER_THREAD;
+const HIST_BIN_COUNT: usize = 128;
 
 // From qutip implementation
 //macro_rules! lowering {
@@ -67,6 +68,17 @@ fn commutator(a: Operator, b: Operator) -> Operator {
 #[inline]
 fn anticommutator(a: Operator, b: Operator) -> Operator {
     &(a * b) + &(b * a)
+}
+
+
+macro_rules! alloc_zero {
+    ($T: ty) => {
+        unsafe {
+            let layout = std::alloc::Layout::new::<$T>();
+            let ptr = std::alloc::alloc_zeroed(layout) as *mut $T;
+            Box::from_raw(ptr)
+        }
+    };
 }
 
 impl QubitSystem {
@@ -119,9 +131,9 @@ impl QubitSystem {
 
         let hamiltonian = (hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator();
 
-        // CNOT 0, 1
-        let hamiltonian = hamiltonian
-            + omega * (&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
+        //////// CNOT 0, 1
+        //////let hamiltonian = hamiltonian
+        //////    + omega * (&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
         // let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
 
@@ -129,7 +141,7 @@ impl QubitSystem {
         // 01  0
         // 10  0.5
         // 11  0
-        let psi = Matrix::vector(&[f32::sqrt(0.5), 0.0, f32::sqrt(0.5), 0.0]);
+        let psi = Matrix::vector(&[f32::sqrt(1.0), 0.0, f32::sqrt(0.0), 0.0]);
         let rho = (&psi * &psi.transpose()).to_operator();
 
         // println!("{rho}");
@@ -160,28 +172,32 @@ impl QubitSystem {
         }
     }
 
-    fn lindblad(&self, operator: Operator) -> Operator {
-        operator * self.rho * operator.dagger()
-            - 0.5 * anticommutator(operator.dagger() * operator, self.rho)
+    fn lindblad(&self, operator: &Operator) -> Operator {
+        let op_dag = operator.dagger();
+
+        operator * self.rho * op_dag
+            - 0.5 * anticommutator(op_dag * operator, self.rho)
     }
 
-    fn dv(&mut self, rho: Operator) -> (Operator, cf32) {
-        let h_cal = self.c_out_phased * self.rho + self.rho * self.c_out_phased.adjoint()
-            - ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace() * self.rho;
+    fn dv(&mut self, rho: Operator) -> (Operator, ()/*cf32*/) {
+        let cop = self.c_out_phased;
+        let copa = self.c_out_phased.adjoint();
+        let cop_rho = cop * self.rho;
+        let rho_copa = self.rho * copa;
+        let last_term = (cop_rho + copa * self.rho).trace() * self.rho;
 
-        let h_cal_neg = MINUS_I * self.c_out_phased * self.rho
-            + I * self.rho * self.c_out_phased.adjoint()
-            - ((self.c_out_phased + self.c_out_phased.adjoint()) * self.rho).trace() * self.rho;
+        let h_cal = cop_rho + rho_copa - last_term;
+        let h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
 
         // let a = self.measurement;
         (
             MINUS_I * commutator(self.hamiltonian, rho)
                 //+ self.lindblad(a)
-                + self.lindblad(self.c1) // Photon field transmission/losses
+                + self.lindblad(&self.c1) // Photon field transmission/losses
                 //+ self.lindblad(self.c2) // Decay to ground state
-                + self.lindblad(self.c3)
+                + self.lindblad(&self.c3)
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
-            ZERO,
+            ()//ZERO,
         )
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
@@ -193,7 +209,7 @@ impl QubitSystem {
         let (k_3, dY_3) = self.dv(self.rho + time_step * k_2);
         let t_3 = time_step / 3.0;
         self.rho += t_3 * (k_1 + k_2 + 0.5 * (k_0 + k_3));
-        self.Y += t_3 * (dY_1 + dY_2 + 0.5 * (dY_0 + dY_3));
+        //self.Y += t_3 * (dY_1 + dY_2 + 0.5 * (dY_0 + dY_3));
     }
 }
 
@@ -208,11 +224,13 @@ fn simulate() {
         .as_secs();
 
     let mut parameter_file =
-        std::fs::File::create(format!("results/{}_parameters.txt", timestamp)).unwrap();
+        std::fs::File::create(format!("results/{timestamp}_parameters.txt")).unwrap();
     let mut data_file =
-        std::fs::File::create(format!("results/{}_trajectories.dat", timestamp)).unwrap();
-    //let mut current_file =
-    //    std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
+        std::fs::File::create(format!("results/{timestamp}_trajectories.dat")).unwrap();
+    let mut hist_file =
+        std::fs::File::create(format!("results/{timestamp}_hist.dat")).unwrap();
+    let mut current_file =
+        std::fs::File::create(format!("results/{}_currents.dat", timestamp)).unwrap();
 
     //let gamma = SMatrix::<cf32, 4, 4>::from_diagonal_element(ONE);
 
@@ -255,38 +273,51 @@ let gamma_phi = {gamma_phi};
     ////////let mut signal = Vec::new();
 
     // metadata
-    //current_file.write(&SIMULATION_COUNT.to_le_bytes()).unwrap();
+    current_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
+
     //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
     data_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
 
+    hist_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
+    hist_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
+    hist_file.write_all(&(HIST_BIN_COUNT as u32 * Operator::SIZE as u32).to_le_bytes()).unwrap();
+
     struct ThreadResult {
         trajectory_sum:  [StateProbabilitiesSimd; STEP_COUNT as usize+1],
-        trajectory_hist: [[Histogram<10>; Operator::SIZE]; STEP_COUNT as usize+1],
+        trajectory_hist: [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
+        current_sum: [Complex; SIMULATIONS_PER_THREAD as usize]
     }
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
-        let mut local = ThreadResult {
-            trajectory_sum: [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1],
-            trajectory_hist: [[Histogram::new(); Operator::SIZE]; STEP_COUNT as usize+1]
-        };
+        let mut local = alloc_zero!(ThreadResult);
 
         // Start the timer.
         let now = std::time::Instant::now();
 
+        let total_section_time = 0;
+
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
+
 
             // Initialize system
             let mut system = QubitSystem::new(
                 A, delta_s, g, kappa_1, kappa, beta, delta_r, eta, Phi, gamma_dec, gamma_phi,
             );
 
+
             let mut t = dt;
 
             //current_file.write(b"0.0, 0.0").unwrap();
             //current_file.write(&[0u8; 8]).unwrap();
+
+            let c = system.c_out_phased;
+            let x = c + c.dagger();
+            let y = MINUS_I*(c - c.dagger());
+
+            let mut J = ZERO;
 
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
@@ -295,11 +326,14 @@ let gamma_phi = {gamma_phi};
                 //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
                 //    .unwrap();
                 //// trajectory[step] = system.rho.get_probabilites_simd();
+
+                //let section_start = std::time::Instant::now();
                 let P = system.rho.get_probabilites_simd();
                 local.trajectory_sum[step].add(&P);
                 for (i, p) in P.v.iter().enumerate() {
                     local.trajectory_hist[step][i].add_values(p);
                 }
+                //total_section_time += section_start.elapsed().as_micros();
 
                 // TODO: DELETE
                 //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
@@ -318,6 +352,13 @@ let gamma_phi = {gamma_phi};
 
                 // Do the runge-kutta4 step.
                 system.runge_kutta(dt);
+
+                // Compute current.
+                const SQRT2_OVER_DT: Real = Real::from_array([std::f32::consts::SQRT_2/dt; Real::LANES]);
+                J += Complex {
+                    real: (x*system.rho).trace().real + SQRT2_OVER_DT * system.dW[0],
+                    imag: (y*system.rho).trace().real + SQRT2_OVER_DT * system.dW[1]
+                };
 
                 // Normalize rho.
                 //println!("Trace: {}", system.rho.trace());
@@ -355,7 +396,7 @@ let gamma_phi = {gamma_phi};
                 local.trajectory_hist[STEP_COUNT as usize][i].add_values(p);
             }
 
-
+            local.current_sum[simulation as usize] = J;
 
             //current_file
             //    .write(unsafe {
@@ -374,9 +415,12 @@ let gamma_phi = {gamma_phi};
             ////////    break;
             ////////}
         }
-        let total_time = now.elapsed().as_micros();
+        let total_time = now.elapsed().as_millis();
 
-        println!("Thread {thread_id} finished {} simulations in {} μs ({} μs/sim)", SIMULATIONS_PER_THREAD, total_time, total_time/SIMULATIONS_PER_THREAD as u128);
+        println!("Thread {thread_id} finished {SIMULATIONS_PER_THREAD} simulations in {total_time} ms ({} μs/sim) (total section time {} ms)",
+                 (total_time*1000)/(SIMULATIONS_PER_THREAD*Real::LANES as u32) as u128,
+                 total_section_time/1000
+        );
 
         for s in local.trajectory_sum.iter_mut() {
             s.divide(SIMULATIONS_PER_THREAD as f32);
@@ -385,8 +429,9 @@ let gamma_phi = {gamma_phi};
         local
     })).collect();
 
-    let mut trajectory_average = [StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize];
-    let mut trajectory_histograms = [[Histogram::<10>::new(); Operator::SIZE]; STEP_COUNT as usize+1];
+    let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize].into_boxed_slice();
+    let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1]);
+
 
     // Wait for threads
     for tt in threads {
@@ -401,6 +446,12 @@ let gamma_phi = {gamma_phi};
             }
         }
 
+        for the_current in local.current_sum.iter() {
+            for lane in 0..Real::LANES {
+                current_file.write_all(&the_current.real.as_array()[lane].to_le_bytes()).unwrap();
+                current_file.write_all(&the_current.imag.as_array()[lane].to_le_bytes()).unwrap();
+            }
+        }
     }
 
     for s in trajectory_average.iter_mut() {
@@ -416,6 +467,13 @@ let gamma_phi = {gamma_phi};
         data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
+    for state in trajectory_histograms.iter() {
+        for hist in state.iter() {
+            for bin in hist.bins.iter().rev() {
+                hist_file.write_all(&bin.to_le_bytes()).unwrap();
+            }
+        }
+    }
 }
 
 fn bloch_vector(rho: &Operator) -> [f32; 3] {
