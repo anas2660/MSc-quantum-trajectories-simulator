@@ -78,7 +78,7 @@ ax.set_yticks(ticks=(np.arange(hist_state_count)+0.5),
            labels = [FORMAT_STRING.format(i) for i in np.arange(hist_state_count)])
 ax.grid(True, which='minor', linewidth=2.0)
 ax.grid(False, which='major')
-fig.colorbar(im)
+fig.colorbar(im, norm=colors.LogNorm())
 plt.show()
 
 
@@ -96,7 +96,12 @@ current_data = np.reshape(np.frombuffer(current_data_buffer, np.float32, offset=
 
 plt.plot(current_data[:,0], current_data[:,1], 'o')
 plt.grid()
+
+print(np.average(current_data[:,0]), ",", np.average(current_data[:,1]))
+
 plt.show()
+
+
 
 # TODO fix memory leak
 if False:

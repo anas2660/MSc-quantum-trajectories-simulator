@@ -100,7 +100,7 @@ impl QubitSystem {
     ) -> Self {
         let ddelta = delta_r - delta_s;
         let chi = 0.6;
-        let omega = 10.0;
+        let omega = 3.0;
 
         #[allow(unused_variables)]
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
@@ -134,26 +134,42 @@ impl QubitSystem {
         let hamiltonian =
             (hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator();
 
-        //////// CNOT 0, 1
-        //////let hamiltonian = hamiltonian
-        //////    + omega * (&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
+        // CNOT 0, 1
+        let hamiltonian = hamiltonian
+            + omega * (&(ket(&one)*bra(&one))).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
         // let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
 
         // 00  0.5
-        // 01  0
+        // 01  0.0
         // 10  0.5
         // 11  0
-        let psi = Matrix::vector(&[f32::sqrt(1.0), 0.0, f32::sqrt(0.0), 0.0]);
+        let psi = Matrix::vector(&[f32::sqrt(0.5), f32::sqrt(0.0), f32::sqrt(0.5), 0.0]);
+        //let psi = Matrix::vector(&[f32::sqrt(1.0), 0.0, f32::sqrt(0.0), 0.0]);
+
         let rho = (&psi * &psi.transpose()).to_operator();
 
         // println!("{rho}");
 
-        let c_out =
-            (kappa_1 * 2.0).sqrt() * a.kronecker(&a).to_operator() - beta * Operator::identity();
-        let c1 = (2.0 * kappa).sqrt() * a.kronecker(&a).to_operator();
-        let c2 = gamma_dec.sqrt() * sigma_minus.kronecker(&sigma_minus).to_operator();
-        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z.kronecker(&sigma_z).to_operator();
+        //let c_out =
+        //    (kappa_1 * 2.0).sqrt() * a.kronecker(&a).to_operator() - beta * Operator::identity();
+        //let c1 = (2.0 * kappa).sqrt() * a.kronecker(&a).to_operator();
+        //let c2 = gamma_dec.sqrt() * sigma_minus.kronecker(&sigma_minus).to_operator();
+        //let c3 = (gamma_phi / 2.0).sqrt() * sigma_z.kronecker(&sigma_z).to_operator();
+
+        let c_out = (kappa_1 * 2.0).sqrt() * &a - beta * &identity;
+        let c1 = (2.0 * kappa).sqrt() * &a;
+        let c2 = gamma_dec.sqrt() * sigma_minus;
+        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z;
+
+        let c_out = (c_out.kronecker(&identity) + identity.kronecker(&c_out)).to_operator();
+        let c1 = (c1.kronecker(&identity) + identity.kronecker(&c1)).to_operator();
+        let c2 = (c2.kronecker(&identity) + identity.kronecker(&c2)).to_operator();
+        let c3 = (c3.kronecker(&identity) + identity.kronecker(&c3)).to_operator();
+
+
+
+
 
         let sqrt_eta = eta.sqrt();
         let c_out_phased = c_out * ((I * Phi).exp());
@@ -240,8 +256,8 @@ fn simulate() {
     let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
     let delta_s = 1.0;
     let g = 2.0;
-    let kappa_1 = 10.0;
     let kappa = 10.0;
+    let kappa_1 = 10.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
     let beta = ONE;
     let delta_r = 0.0;
     let eta = 0.5;
@@ -361,19 +377,6 @@ let gamma_phi = {gamma_phi};
                 //println!("Trace: {}", system.rho.trace());
                 system.rho = system.rho / system.rho.trace();
 
-                // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
-
-                ////////if pipe.is_opened() {
-                ////////    let bv = bloch_vector(&system.rho);
-                ////////    //let f = |c: Complex| {
-                ////////    //    let (r, i) = c.first();
-                ////////    //    (r*r + i*i).sqrt()
-                ////////    //};
-                ////////    //pipe.write_vec3([f(system.rho[(0,0)]), f(system.rho[(1,1)]), f(system.rho[(1,1)])]);
-                ////////    pipe.write_vec3(bv);
-                ////////    //dbg!(&bv);
-                ////////}
-
 
                 // Compute current.
                 const SQRT2_OVER_DT: Real = Real::from_array([std::f32::consts::SQRT_2/dt; Real::LANES]);
@@ -381,10 +384,6 @@ let gamma_phi = {gamma_phi};
                     real: (x*system.rho).trace().real + SQRT2_OVER_DT * system.dW[0],
                     imag: (y*system.rho).trace().real + SQRT2_OVER_DT * system.dW[1]
                 };
-
-                // Normalize rho.
-                //println!("Trace: {}", system.rho.trace());
-                system.rho = system.rho / system.rho.trace();
 
                 // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
 
