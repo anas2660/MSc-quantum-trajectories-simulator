@@ -59,7 +59,7 @@ struct QubitSystem {
     measurement: Operator,
     c1: Operator,
     c2: Operator,
-    c3: Operator,
+    c3: [Operator; 2],
     dW: [Real; 2],
 }
 
@@ -165,7 +165,7 @@ impl QubitSystem {
         let c_out = (c_out.kronecker(&identity) + identity.kronecker(&c_out)).to_operator();
         let c1 = (c1.kronecker(&identity) + identity.kronecker(&c1)).to_operator();
         let c2 = (c2.kronecker(&identity) + identity.kronecker(&c2)).to_operator();
-        let c3 = (c3.kronecker(&identity) + identity.kronecker(&c3)).to_operator();
+        let c3 = [c3.kronecker(&identity).to_operator(), identity.kronecker(&c3).to_operator()];
 
 
 
@@ -214,7 +214,7 @@ impl QubitSystem {
                 //+ self.lindblad(a)
                 + self.lindblad(&self.c1) // Photon field transmission/losses
                 //+ self.lindblad(self.c2) // Decay to ground state
-                + self.lindblad(&self.c3)
+                + self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
             ()//ZERO,
         )
