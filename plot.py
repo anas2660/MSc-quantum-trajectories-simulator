@@ -78,7 +78,7 @@ ax.set_yticks(ticks=(np.arange(hist_state_count)+0.5),
            labels = [FORMAT_STRING.format(i) for i in np.arange(hist_state_count)])
 ax.grid(True, which='minor', linewidth=2.0)
 ax.grid(False, which='major')
-fig.colorbar(im, norm=colors.LogNorm())
+#fig.colorbar(im, norm=colors.LogNorm())
 plt.show()
 
 
@@ -95,9 +95,14 @@ current_simulations = current_metadata[0]
 current_data = np.reshape(np.frombuffer(current_data_buffer, np.float32, offset=4), (current_simulations, 2))
 
 plt.plot(current_data[:,0], current_data[:,1], 'o')
+
+avg_x = np.average(current_data[:,0])
+avg_y = np.average(current_data[:,1])
+plt.plot(avg_x, avg_y, 'ro')
 plt.grid()
 
-print(np.average(current_data[:,0]), ",", np.average(current_data[:,1]))
+
+print(avg_x, ",", avg_y)
 
 plt.show()
 

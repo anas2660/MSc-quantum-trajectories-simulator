@@ -12,7 +12,13 @@ pub struct Operator {
 }
 
 impl Operator {
-    pub const SIZE: usize = 4;
+    pub const QUBIT_COUNT: usize = 2;
+    pub const SIZE: usize = 1 << Operator::QUBIT_COUNT;
+
+    pub fn zero() -> Self {
+        unsafe { std::mem::MaybeUninit::zeroed().assume_init() }
+    }
+
     pub fn identity() -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
@@ -87,6 +93,14 @@ impl Operator {
     pub fn scale(&self, rhs: f32) -> Self {
         self * rhs
     }
+
+    pub fn pow(&self, n: u32) -> Operator {
+        //(0..n).fold(Operator::identity(), |acc, x| &acc*self);
+        let mut tmp = Operator::identity();
+        for _ in 0..n { tmp = &tmp * self; }
+        tmp
+    }
+
 
     #[inline]
     pub fn trace(&self) -> Complex {
@@ -333,6 +347,34 @@ impl Div<Complex> for Operator {
         &self / &rhs
     }
 }
+
+
+impl Div<&Operator> for &Complex {
+    type Output = Operator;
+    fn div(self, rhs: &Operator) -> Self::Output {
+        let identity = Operator::identity();
+        let mut result = Operator::zero();
+
+        for n in 0..6 {
+            let factor = -((n&1) as f32);
+            result += (rhs - &identity).pow(n).scale(factor);
+        }
+
+        *self * result
+    }
+}
+
+impl Div<Operator> for Complex {
+    type Output = Operator;
+    #[inline]
+    fn div(self, rhs: Operator) -> Self::Output {
+        &self / &rhs
+    }
+}
+
+
+
+
 
 #[derive(Clone,Copy)]
 pub struct StateProbabilitiesSimd {
