@@ -95,10 +95,7 @@ impl Operator {
     }
 
     pub fn pow(&self, n: u32) -> Operator {
-        //(0..n).fold(Operator::identity(), |acc, x| &acc*self);
-        let mut tmp = Operator::identity();
-        for _ in 0..n { tmp = &tmp * self; }
-        tmp
+        (0..n).fold(Operator::identity(), |p, _| p*self)
     }
 
 

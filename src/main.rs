@@ -36,8 +36,8 @@ const I: cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.01;
-const STEP_COUNT: u32 = 600;
+const dt: f32 = 0.030;
+const STEP_COUNT: u32 = 1000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
 const SIMULATIONS_PER_THREAD: u32 = 100;
@@ -144,16 +144,16 @@ impl QubitSystem {
         let omega = 1.0;
         // let g = chi * ddelta.abs();
 
-        let chi     = 0.6 / 10.0;
-        let g       = 125.6637061435917 / 100.0;
-        let omega_r = 28368.582 / 100.0;
-        let omega_s = 2049.6365 / 100.0;
-        let delta_s = 26318.94506957162 / 100.0;
+        let chi     = 0.6 / 1000.0;
+        let g       = 125.6637061435917 / 1000.0;
+        let omega_r = 28368.582 / 1000.0;
+        let omega_s = 2049.6365 / 1000.0;
+        let delta_s = 26318.94506957162 / 1000.0;
 
 
         let omega_b = 0.1;
-        let delta_s = [delta_s; 2]; // |ω_r - ω_s|
-        let delta_bs = [omega_s; 2]; // ω_b - ω_s
+        let delta_s = [delta_s+0., delta_s-0.]; // |ω_r - ω_s|
+        let delta_bs = [omega_s+0., omega_s-0.]; // ω_b - ω_s
         let delta_br = omega_r; // ω_b - ω_r
         let chi = [chi; 2];
         //let chi = [0.6, 0.6];
@@ -185,10 +185,10 @@ impl QubitSystem {
         /// let sigma_z_4x4 = apply_individually(&sigma_z);
         /// let hamiltonian =
         ///     //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
-        ///     0.5 * delta_s * sigma_z_4x4
+        ///     0.5 * delta_s[0] * sigma_z_4x4
         ///     + I * (2.0 * kappa_1).sqrt() * (beta * a.dagger() - beta.conjugate() * a) // Detuning
         ///     + delta_r * N
-        ///     + chi * N * sigma_z_4x4;
+        ///     + chi[0] * N * sigma_z_4x4;
         ///     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
 
 
@@ -213,10 +213,10 @@ impl QubitSystem {
 
         // Initial state probabilities
         let mut p = [
-            0.4, // 00
-            0.1, // 01
-            0.4, // 10
-            0.1  // 11
+            0.01, // 00
+            0.49, // 01
+            0.49, // 10
+            0.01  // 11
         ];
 
         // Transform into coefficients
@@ -290,7 +290,7 @@ impl QubitSystem {
                 + self.lindblad(&self.c1) // Photon field transmission/losses
                 //+ self.lindblad(&self.c2) // Decay to ground state
                 + self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
-                //+ self.lindblad(&cop) // c_out
+                + self.lindblad(&cop) // c_out
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
             ()//ZERO,
         )
@@ -334,9 +334,9 @@ fn simulate() {
     let g = 2.0;
     let kappa = 1.2;
     let kappa_1 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-    let beta = 0.5*ONE;
+    let beta = 1.0*ONE;
     let delta_r = 0.5;
-    let eta = 0.1;
+    let eta = 0.9;
     let Phi = 0.0;
     let gamma_dec = 1.0;
     let gamma_phi = 1.0;

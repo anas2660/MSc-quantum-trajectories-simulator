@@ -9,11 +9,11 @@ pub struct Histogram<const BIN_COUNT: usize> {
 }
 
 impl<const BIN_COUNT: usize> Histogram<BIN_COUNT> {
-    pub fn new() -> Histogram<BIN_COUNT> {
-        Histogram {
-            bins: [0u32; BIN_COUNT],
-        }
-    }
+    // pub fn new() -> Histogram<BIN_COUNT> {
+    //     Histogram {
+    //         bins: [0u32; BIN_COUNT],
+    //     }
+    // }
 
     pub fn add_values(&mut self, v: &Real) {
         let indices: u32x8 = unsafe { (v * Real::splat(BIN_COUNT as f32)).to_int_unchecked() }
