@@ -32,12 +32,36 @@ const I: cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
-const dt: f32 = 0.030;
-const STEP_COUNT: u32 = 1000;
+// Simulation constants
+const dt: f32 = 0.01;
+const STEP_COUNT: u32 = 700;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 100;
+const SIMULATIONS_PER_THREAD: u32 = 10;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
+
+// Physical constants
+const kappa:     f32 = 1.2;
+const kappa_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const delta_r:   f32 = 0.5;
+const beta:     cf32 = Complex::new(1.0, 0.0);
+const gamma_dec: f32 = 1.0;
+const eta: f32 = 0.9;
+const Phi: f32 = 0.0; // c_out phase shift
+const gamma_phi: f32 = 1.0;
+//const ddelta: f32 = delta_r - delta_s;
+const chi_base: f32 = 0.6 / 1000.0;
+const g:  f32 = 125.6637061435917 / 1000.0;
+const omega_r: f32 = 28368.582 / 1000.0;
+const omega_s_base: f32 = 2049.6365 / 1000.0;
+const delta_s_base: f32 = 26318.94506957162 / 1000.0;
+
+const omega_b: f32 = 0.1;
+const delta_s: [f32; 2] = [delta_s_base+0., delta_s_base-0.]; // |ω_r - ω_s|
+const delta_bs: [f32; 2] = [omega_s_base+0., omega_s_base-0.]; // ω_b - ω_s
+const delta_br: f32 = omega_r; // ω_b - ω_r
+const chi: [f32; 2] = [chi_base; 2];
+
 
 // From qutip implementation
 //macro_rules! lowering {
@@ -77,7 +101,7 @@ fn anticommutator(a: Operator, b: Operator) -> Operator {
 macro_rules! alloc_zero {
     ($T: ty) => {
         unsafe {
-            let layout = std::alloc::Layout::new::<$T>();
+            const layout: std::alloc::Layout = std::alloc::Layout::new::<$T>();
             let ptr = std::alloc::alloc_zeroed(layout) as *mut $T;
             Box::from_raw(ptr)
         }
@@ -120,37 +144,8 @@ fn apply_and_scale_individually(factors: [f32; Operator::QUBIT_COUNT], op: &Matr
 }
 
 
-
-
 impl QubitSystem {
-    fn new(
-        A: Operator,
-        delta_s: f32,
-        g: f32,
-        kappa_1: f32,
-        kappa: f32,
-        beta: cf32,
-        delta_r: f32,
-        eta: f32,
-        Phi: f32,
-        gamma_dec: f32,
-        gamma_phi: f32,
-    ) -> Self {
-        let ddelta = delta_r - delta_s;
-        let omega = 1.0;
-
-        let chi     = 0.6 / 1000.0;
-        let g       = 125.6637061435917 / 1000.0;
-        let omega_r = 28368.582 / 1000.0;
-        let omega_s = 2049.6365 / 1000.0;
-        let delta_s = 26318.94506957162 / 1000.0;
-
-        let omega_b = 0.1;
-        let delta_s = [delta_s+0., delta_s-0.]; // |ω_r - ω_s|
-        let delta_bs = [omega_s+0., omega_s-0.]; // ω_b - ω_s
-        let delta_br = omega_r; // ω_b - ω_r
-        let chi = [chi; 2];
-
+    fn new() -> Self {
         #[allow(unused_variables)]
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
         let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
@@ -193,10 +188,7 @@ impl QubitSystem {
             + (N + 0.5*identity) * χσ_z;
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
 
-
-
         //let hamiltonian = omega_r * a.dagger() * a + (omega_s + 2.0 * (g*g/delta_s) * (a.dagger()*a + 0.5*Operator::identity()));
-
 
         // CNOT 0, 1
         //let hamiltonian = hamiltonian
@@ -242,7 +234,7 @@ impl QubitSystem {
             c_out_phased,
             d_chi_rho,
             rng: thread_rng(),
-            measurement: A,
+            measurement: Operator::from_fn(|r, c| ONE * (r * c) as f32),
             c1,
             c2,
             c3,
@@ -307,24 +299,11 @@ fn simulate() {
     let mut current_file =
         std::fs::File::create(format!("results/{timestamp}_currents.dat")).unwrap();
 
-    let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
-    let delta_s = 2.0;
-    let g = 2.0;
-    let kappa = 1.2;
-    let kappa_1 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-    let beta = 1.0*ONE;
-    let delta_r = 0.5;
-    let eta = 0.9;
-    let Phi = 0.0;
-    let gamma_dec = 1.0;
-    let gamma_phi = 1.0;
-
+    // FIXME
     parameter_file
         .write_all(
             format!(
-                "let A = {A};
-let beta = {beta};
-let delta_s = {delta_s};
+"let beta = {beta};
 let delta_r = {delta_r};
 let g = {g};
 let kappa = {kappa};
@@ -333,11 +312,8 @@ let eta = {eta};
 let Phi = {Phi};
 let gamma_dec = {gamma_dec};
 let gamma_phi = {gamma_phi};
-"
-            )
-                .as_bytes(),
-        )
-        .unwrap();
+").as_bytes(),
+        ).unwrap();
 
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
     pipe.write_u32(STEP_COUNT);
@@ -368,10 +344,7 @@ let gamma_phi = {gamma_phi};
         let mut total_section_time = 0;
 
         // Create initial system.
-        let initial_system = QubitSystem::new(
-            A, delta_s, g, kappa_1, kappa, beta,
-            delta_r, eta, Phi, gamma_dec, gamma_phi,
-        );
+        let initial_system = QubitSystem::new();
 
         let one_over_sqrtdt = Real::splat(1.0 / dt.sqrt());
 
