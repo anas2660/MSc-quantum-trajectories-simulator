@@ -13,8 +13,6 @@ use histogram::*;
 // mod hamiltonian;
 // use hamiltonian::*;
 
-
-
 use rand_distr::StandardNormal;
 use std::{
     io::Write,
@@ -26,8 +24,6 @@ use rand::{rngs::ThreadRng, thread_rng, Rng};
 mod pipewriter;
 use pipewriter::*;
 
-// type Operator = SMatrix<Complex<f32>, 2, 2>;
-//type Operator = SMatrix<Complex<f32>, 2, 2>;
 #[allow(non_camel_case_types)]
 type cf32 = Complex;
 
@@ -50,7 +46,7 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 //    };
 //}
 
-//#[allow(unsued)]
+#[derive(Clone)]
 struct QubitSystem {
     hamiltonian: Operator,
     rho: Operator,
@@ -142,7 +138,6 @@ impl QubitSystem {
     ) -> Self {
         let ddelta = delta_r - delta_s;
         let omega = 1.0;
-        // let g = chi * ddelta.abs();
 
         let chi     = 0.6 / 1000.0;
         let g       = 125.6637061435917 / 1000.0;
@@ -150,13 +145,11 @@ impl QubitSystem {
         let omega_s = 2049.6365 / 1000.0;
         let delta_s = 26318.94506957162 / 1000.0;
 
-
         let omega_b = 0.1;
         let delta_s = [delta_s+0., delta_s-0.]; // |ω_r - ω_s|
         let delta_bs = [omega_s+0., omega_s-0.]; // ω_b - ω_s
         let delta_br = omega_r; // ω_b - ω_r
         let chi = [chi; 2];
-        //let chi = [0.6, 0.6];
 
         #[allow(unused_variables)]
         let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
@@ -209,7 +202,6 @@ impl QubitSystem {
         //let hamiltonian = hamiltonian
         //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
-        // let gamma_p = 2.0 * g * g * kappa / (kappa * kappa + ddelta * ddelta);
 
         // Initial state probabilities
         let mut p = [
@@ -225,14 +217,6 @@ impl QubitSystem {
         // Construct initial state
         let psi = Matrix::vector(&p);
         let rho = (&psi * &psi.transpose()).to_operator();
-
-        // println!("{rho}");
-
-        //let c_out =
-        //    (kappa_1 * 2.0).sqrt() * a.kronecker(&a).to_operator() - beta * Operator::identity();
-        //let c1 = (2.0 * kappa).sqrt() * a.kronecker(&a).to_operator();
-        //let c2 = gamma_dec.sqrt() * sigma_minus.kronecker(&sigma_minus).to_operator();
-        //let c3 = (gamma_phi / 2.0).sqrt() * sigma_z.kronecker(&sigma_z).to_operator();
 
         let c_out = (kappa_1 * 2.0).sqrt() * a - beta * Operator::identity();
         let c1 = (2.0 * kappa).sqrt() * a;
@@ -286,13 +270,13 @@ impl QubitSystem {
         // let a = self.measurement;
         (
             MINUS_I * commutator(self.hamiltonian, rho)
-                //+ self.lindblad(a)
-                + self.lindblad(&self.c1) // Photon field transmission/losses
-                //+ self.lindblad(&self.c2) // Decay to ground state
-                + self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
+                ////+ self.lindblad(a)
+                //+ self.lindblad(&self.c1) // Photon field transmission/losses
+                ////+ self.lindblad(&self.c2) // Decay to ground state
+                //+ self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
                 + self.lindblad(&cop) // c_out
                 + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
-            ()//ZERO,
+            (),
         )
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
@@ -308,10 +292,6 @@ impl QubitSystem {
     }
 }
 
-//fn tensor_dot(m1: Operator, m2: Operator) -> SMatrix<cf32, 4, 4> {
-//    m1.kronecker(&m2.transpose())
-//}
-
 fn simulate() {
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -326,8 +306,6 @@ fn simulate() {
         std::fs::File::create(format!("results/{timestamp}_hist.dat")).unwrap();
     let mut current_file =
         std::fs::File::create(format!("results/{timestamp}_currents.dat")).unwrap();
-
-    //let gamma = SMatrix::<cf32, 4, 4>::from_diagonal_element(ONE);
 
     let A = Operator::from_fn(|r, c| ONE * (r * c) as f32);
     let delta_s = 2.0;
@@ -364,8 +342,6 @@ let gamma_phi = {gamma_phi};
     let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
     pipe.write_u32(STEP_COUNT);
 
-    ////////let mut signal = Vec::new();
-
     // metadata
     current_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
 
@@ -389,26 +365,26 @@ let gamma_phi = {gamma_phi};
 
         // Start the timer.
         let now = std::time::Instant::now();
-
         let mut total_section_time = 0;
+
+        // Create initial system.
+        let initial_system = QubitSystem::new(
+            A, delta_s, g, kappa_1, kappa, beta,
+            delta_r, eta, Phi, gamma_dec, gamma_phi,
+        );
+
+        let one_over_sqrtdt = Real::splat(1.0 / dt.sqrt());
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
 
             // Initialize system
             let before = now.elapsed().as_millis();
-            let mut system = QubitSystem::new(
-                A, delta_s, g, kappa_1, kappa, beta, delta_r, eta, Phi, gamma_dec,
-                gamma_phi,
-            );
+            let mut system = initial_system.clone();
             let after = now.elapsed().as_millis();
             total_section_time += after - before;
 
-
             let mut t = dt;
-
-            //current_file.write(b"0.0, 0.0").unwrap();
-            //current_file.write(&[0u8; 8]).unwrap();
 
             let c = system.c_out_phased;
             let x = c + c.dagger();
@@ -419,22 +395,14 @@ let gamma_phi = {gamma_phi};
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
                 // Write current state.
-                //data_file
-                //    .write(format!("{}, ", system.rho[(0, 0)].real()).as_bytes())
-                //    .unwrap();
-                //// trajectory[step] = system.rho.get_probabilites_simd();
-
-                //let section_start = std::time::Instant::now();
                 let P = system.rho.get_probabilites_simd();
                 local.trajectory_sum[step].add(&P);
                 for (i, p) in P.v.iter().enumerate() {
                     local.trajectory_hist[step][i].add_values(p);
                 }
-                //total_section_time += section_start.elapsed().as_micros();
-
 
                 // TODO: DELETE
-                //assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
+                // assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
 
                 // Sample on the normal distribution.
                 {
@@ -444,7 +412,7 @@ let gamma_phi = {gamma_phi};
                         system.dW[1][lane] =
                             system.rng.sample::<f32, StandardNormal>(StandardNormal);
                     }
-                    let c = Real::splat(1.0 / dt.sqrt());
+                    let c = one_over_sqrtdt;
                     system.dW[0] *= c;
                     system.dW[1] *= c;
                 }
@@ -452,11 +420,10 @@ let gamma_phi = {gamma_phi};
                 // Do the runge-kutta4 step.
                 system.runge_kutta(dt);
 
+                // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
-
                 // Normalize rho.
-                //println!("Trace: {}", system.rho.trace());
                 system.rho = system.rho / system.rho.trace();
 
                 // Compute current.
@@ -466,32 +433,13 @@ let gamma_phi = {gamma_phi};
                     imag: (y*system.rho).trace().real + SQRT2_OVER_DT * system.dW[1]
                 };
 
-                // println!("[{}, {}]", system.rho[(0,0)], system.rho[(1,1)]);
-
-                ////////if pipe.is_opened() {
-                ////////    let bv = bloch_vector(&system.rho);
-                ////////    //let f = |c: Complex| {
-                ////////    //    let (r, i) = c.first();
-                ////////    //    (r*r + i*i).sqrt()
-                ////////    //};
-                ////////    //pipe.write_vec3([f(system.rho[(0,0)]), f(system.rho[(1,1)]), f(system.rho[(1,1)])]);
-                ////////    pipe.write_vec3(bv);
-                ////////    //dbg!(&bv);
-                ////////}
-
                 // Calculate integrated current
-                let zeta = system.Y * (1.0 / t.sqrt());
-
-                //current_file
-                //    .write(format!(", {}, {}", zeta.real(), zeta.imag()).as_bytes())
-                //    .unwrap();
-                ////////signal.push(zeta);
+                //let zeta = system.Y * (1.0 / t.sqrt());
 
                 t += dt;
             }
 
             // Write last state.
-            //// trajectory[STEP_COUNT as usize] = system.rho.get_probabilites_simd();
             let P = system.rho.get_probabilites_simd();
             local.trajectory_sum[STEP_COUNT as usize].add(&P);
             for (i, p) in P.v.iter().enumerate() {
@@ -500,22 +448,6 @@ let gamma_phi = {gamma_phi};
 
             local.current_sum[simulation as usize] = J;
 
-            //current_file
-            //    .write(unsafe {
-            //        std::slice::from_raw_parts(
-            //            signal.as_ptr() as *const u8,
-            //            signal.len() * std::mem::size_of::<cf32>(),
-            //        )
-            //    })
-            //    .unwrap();
-
-
-
-            ////////signal.clear();
-
-            ////////if pipe.is_opened() {
-            ////////    break;
-            ////////}
         }
         let total_time = now.elapsed().as_millis();
 
