@@ -33,34 +33,34 @@ const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 // Simulation constants
-const dt: f32 = 0.01;
+const Δt: f32 = 0.1;
 const STEP_COUNT: u32 = 700;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 10;
+const SIMULATIONS_PER_THREAD: u32 = 5;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
-const kappa:     f32 = 1.2;
-const kappa_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const delta_r:   f32 = 0.5;
-const beta:     cf32 = Complex::new(1.0, 0.0);
-const gamma_dec: f32 = 1.0;
-const eta: f32 = 0.9;
-const Phi: f32 = 0.0; // c_out phase shift
-const gamma_phi: f32 = 1.0;
+const κ:     f32 = 1.2;
+const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const Δ_r:   f32 = 0.5;
+const β:    cf32 = Complex::new(1.0, 0.0);
+const γ_dec: f32 = 1.0;
+const η:     f32 = 0.9;
+const Φ:     f32 = 0.0; // c_out phase shift Phi
+const γ_φ:   f32 = 1.0;
 //const ddelta: f32 = delta_r - delta_s;
-const chi_base: f32 = 0.6 / 1000.0;
-const g:  f32 = 125.6637061435917 / 1000.0;
-const omega_r: f32 = 28368.582 / 1000.0;
-const omega_s_base: f32 = 2049.6365 / 1000.0;
-const delta_s_base: f32 = 26318.94506957162 / 1000.0;
+const χ_base:   f32 = 0.6 / 1000.0;
+const g:        f32 = 125.6637061435917 / 1000.0;
+const ω_r:      f32 = 28368.582 / 1000.0;
+const ω_s_base: f32 = 2049.6365 / 1000.0;
+const Δ_s_base: f32 = 26318.94506957162 / 1000.0;
 
-const omega_b: f32 = 0.1;
-const delta_s: [f32; 2] = [delta_s_base+0., delta_s_base-0.]; // |ω_r - ω_s|
-const delta_bs: [f32; 2] = [omega_s_base+0., omega_s_base-0.]; // ω_b - ω_s
-const delta_br: f32 = omega_r; // ω_b - ω_r
-const chi: [f32; 2] = [chi_base; 2];
+const ω_b:       f32 = 0.1;
+const Δ_s:  [f32; 2] = [Δ_s_base+0., Δ_s_base-0.]; // |ω_r - ω_s|
+const Δ_bs: [f32; 2] = [ω_s_base+0., ω_s_base-0.]; // ω_b - ω_s
+const Δ_br:      f32 = ω_r; // ω_b - ω_r
+const χ:    [f32; 2] = [χ_base; 2];
 
 
 // From qutip implementation
@@ -72,13 +72,13 @@ const chi: [f32; 2] = [chi_base; 2];
 
 #[derive(Clone)]
 struct QubitSystem {
-    hamiltonian: Operator,
-    rho: Operator,
+    H: Operator,
+    ρ: Operator,
     Y: cf32,
     //t: f32
-    sqrt_eta: f32,
+    sqrt_η: f32,
     c_out_phased: Operator,
-    d_chi_rho: Operator,
+    dχρ: Operator,
     rng: ThreadRng,
     measurement: Operator,
     c1: Operator,
@@ -147,13 +147,22 @@ fn apply_and_scale_individually(factors: [f32; Operator::QUBIT_COUNT], op: &Matr
 impl QubitSystem {
     fn new() -> Self {
         #[allow(unused_variables)]
-        let sigma_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
-        let sigma_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
-        let sigma_minus: Matrix = Matrix::new(0.0, 0.0, 1.0, 0.0);
+        let σ_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
+        let σ_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
+        let σ_minus: Matrix = Matrix::new(0.0, 0.0, 1.0, 0.0);
         let identity = Operator::identity();
 
-        let χσ_z = apply_and_scale_individually(chi, &sigma_z);
-        let a = (2.0*kappa_1).sqrt() * beta / (delta_r*identity + I*χσ_z + kappa*identity);
+        let χσ_z = apply_and_scale_individually(χ, &σ_z);
+        //let a = (2.0*κ_1).sqrt() * β / (Δ_r*identity + I*χσ_z + κ*identity);
+
+        let a = Operator::from_fn(|r,c| {
+            (r==c) as u32 as f32
+                * (2.*κ_1).sqrt() * β
+                / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (i, χ_n)| {
+                    acc - (((c>>i)&1)*2 - 1) as f32 * χ_n // TODO: Check this
+                }))
+        });
+
 
         let N = a.dagger() * a;
 
@@ -179,12 +188,12 @@ impl QubitSystem {
         ///     + chi[0] * N * sigma_z_4x4;
         ///     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
 
-
-        let hamiltonian =
+        // Hamiltonian
+        let H =
             //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
-            0.5 * apply_and_scale_individually(delta_bs, &sigma_z)
-            + I * (2.0 * kappa_1).sqrt() * (beta * a.dagger() - beta.conjugate() * a) // Detuning
-            + delta_br * N
+            0.5 * apply_and_scale_individually(Δ_bs, &σ_z)
+            + I * (2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a) // Detuning
+            + Δ_br * N
             + (N + 0.5*identity) * χσ_z;
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
 
@@ -207,13 +216,13 @@ impl QubitSystem {
         for x in p.iter_mut() { *x = f32::sqrt(*x) }
 
         // Construct initial state
-        let psi = Matrix::vector(&p);
-        let rho = (&psi * &psi.transpose()).to_operator();
+        let ψ = Matrix::vector(&p);
+        let ρ = (&ψ * ψ.transpose()).to_operator();
 
-        let c_out = (kappa_1 * 2.0).sqrt() * a - beta * Operator::identity();
-        let c1 = (2.0 * kappa).sqrt() * a;
-        let c2 = gamma_dec.sqrt() * &sigma_minus;//sigma_minus;
-        let c3 = (gamma_phi / 2.0).sqrt() * sigma_z;
+        let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
+        let c1 = (2.0 * κ).sqrt() * a;
+        let c2 = γ_dec.sqrt() * &σ_minus;//sigma_minus;
+        let c3 = (γ_φ / 2.0).sqrt() * σ_z;
 
         let identity = Matrix::identity(2);
 
@@ -222,17 +231,17 @@ impl QubitSystem {
         let c2 = (c2.kronecker(&identity) + identity.kronecker(&c2)).to_operator();
         let c3 = [c3.kronecker(&identity).to_operator(), identity.kronecker(&c3).to_operator()];
 
-        let sqrt_eta = eta.sqrt();
-        let c_out_phased = c_out * ((I * Phi).exp());
-        let d_chi_rho = sqrt_eta * (c_out_phased + c_out_phased.adjoint());
+        let sqrt_η = η.sqrt();
+        let c_out_phased = c_out * ((I * Φ).exp());
+        let dχρ = sqrt_η * (c_out_phased + c_out_phased.adjoint());
 
         Self {
-            hamiltonian,
-            rho,
+            H,
+            ρ,
             Y: ZERO,
-            sqrt_eta,
+            sqrt_η,
             c_out_phased,
-            d_chi_rho,
+            dχρ,
             rng: thread_rng(),
             measurement: Operator::from_fn(|r, c| ONE * (r * c) as f32),
             c1,
@@ -245,42 +254,42 @@ impl QubitSystem {
     fn lindblad(&self, operator: &Operator) -> Operator {
         let op_dag = operator.dagger();
 
-        operator * self.rho * op_dag
-            - 0.5 * anticommutator(op_dag * operator, self.rho)
+        operator * self.ρ * op_dag
+            - 0.5 * anticommutator(op_dag * operator, self.ρ)
     }
 
     fn dv(&mut self, rho: Operator) -> (Operator, ()/*cf32*/) {
         let cop = self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
-        let cop_rho = cop * self.rho;
-        let rho_copa = self.rho * copa;
-        let last_term = (cop_rho + copa * self.rho).trace() * self.rho;
+        let cop_rho = cop * self.ρ;
+        let rho_copa = self.ρ * copa;
+        let last_term = (cop_rho + copa * self.ρ).trace() * self.ρ;
 
         let h_cal = cop_rho + rho_copa - last_term;
         let h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
 
         // let a = self.measurement;
         (
-            MINUS_I * commutator(self.hamiltonian, rho)
+            MINUS_I * commutator(self.H, rho)
                 ////+ self.lindblad(a)
                 //+ self.lindblad(&self.c1) // Photon field transmission/losses
                 ////+ self.lindblad(&self.c2) // Decay to ground state
                 //+ self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
                 + self.lindblad(&cop) // c_out
-                + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_eta * self.rho,
+                + (h_cal * self.dW[0] + h_cal_neg * self.dW[1]) * self.sqrt_η * self.ρ,
             (),
         )
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
-        let (k_0, dY_0) = self.dv(self.rho);
-        let (k_1, dY_1) = self.dv(self.rho + 0.5 * time_step * k_0);
-        let (k_2, dY_2) = self.dv(self.rho + 0.5 * time_step * k_1);
-        let (k_3, dY_3) = self.dv(self.rho + time_step * k_2);
-        let t_3 = time_step / 3.0;
-        self.rho += t_3 * (k_1 + k_2 + 0.5 * (k_0 + k_3));
-        //self.Y += t_3 * (dY_1 + dY_2 + 0.5 * (dY_0 + dY_3));
+        let (k0, dY0) = self.dv(self.ρ);
+        let (k1, dY1) = self.dv(self.ρ + 0.5 * time_step * k0);
+        let (k2, dY2) = self.dv(self.ρ + 0.5 * time_step * k1);
+        let (k3, dY3) = self.dv(self.ρ + time_step * k2);
+        let t3 = time_step / 3.0;
+        self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
+        //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 }
 
@@ -290,33 +299,27 @@ fn simulate() {
         .unwrap()
         .as_secs();
 
-    let mut parameter_file =
-        std::fs::File::create(format!("results/{timestamp}_parameters.txt")).unwrap();
-    let mut data_file =
-        std::fs::File::create(format!("results/{timestamp}_trajectories.dat")).unwrap();
-    let mut hist_file =
-        std::fs::File::create(format!("results/{timestamp}_hist.dat")).unwrap();
-    let mut current_file =
-        std::fs::File::create(format!("results/{timestamp}_currents.dat")).unwrap();
+    let create_output_file = |name| std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap();
+    let mut parameter_file = create_output_file("parameters.txt");
+    let mut data_file      = create_output_file("trajectories.dat");
+    let mut hist_file      = create_output_file("hist.dat");
+    let mut current_file   = create_output_file("currents.dat");
 
     // FIXME
     parameter_file
         .write_all(
             format!(
-"let beta = {beta};
-let delta_r = {delta_r};
+"let β = {β};
+let Δ_r = {Δ_r};
 let g = {g};
-let kappa = {kappa};
-let kappa_1 = {kappa_1};
-let eta = {eta};
-let Phi = {Phi};
-let gamma_dec = {gamma_dec};
-let gamma_phi = {gamma_phi};
+let κ = {κ};
+let κ_1 = {κ_1};
+let η = {η};
+let Φ = {Φ};
+let γ_dec = {γ_dec};
+let γ_φ = {γ_φ};
 ").as_bytes(),
         ).unwrap();
-
-    let mut pipe = PipeWriter::open("/tmp/blochrender_pipe");
-    pipe.write_u32(STEP_COUNT);
 
     // metadata
     current_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
@@ -346,7 +349,7 @@ let gamma_phi = {gamma_phi};
         // Create initial system.
         let initial_system = QubitSystem::new();
 
-        let one_over_sqrtdt = Real::splat(1.0 / dt.sqrt());
+        let one_over_sqrtdt = Real::splat(1.0 / Δt.sqrt());
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -357,7 +360,7 @@ let gamma_phi = {gamma_phi};
             let after = now.elapsed().as_millis();
             total_section_time += after - before;
 
-            let mut t = dt;
+            let mut t = Δt;
 
             let c = system.c_out_phased;
             let x = c + c.dagger();
@@ -368,7 +371,7 @@ let gamma_phi = {gamma_phi};
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
                 // Write current state.
-                let P = system.rho.get_probabilites_simd();
+                let P = system.ρ.get_probabilites_simd();
                 local.trajectory_sum[step].add(&P);
                 for (i, p) in P.v.iter().enumerate() {
                     local.trajectory_hist[step][i].add_values(p);
@@ -391,29 +394,29 @@ let gamma_phi = {gamma_phi};
                 }
 
                 // Do the runge-kutta4 step.
-                system.runge_kutta(dt);
+                system.runge_kutta(Δt);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
                 // Normalize rho.
-                system.rho = system.rho / system.rho.trace();
+                system.ρ = system.ρ / system.ρ.trace();
 
                 // Compute current.
-                const SQRT2_OVER_DT: Real = Real::from_array([std::f32::consts::SQRT_2/dt; Real::LANES]);
+                const SQRT2_OVER_DT: Real = Real::from_array([std::f32::consts::SQRT_2/Δt; Real::LANES]);
                 J += Complex {
-                    real: (x*system.rho).trace().real + SQRT2_OVER_DT * system.dW[0],
-                    imag: (y*system.rho).trace().real + SQRT2_OVER_DT * system.dW[1]
+                    real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[0],
+                    imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[1]
                 };
 
                 // Calculate integrated current
                 //let zeta = system.Y * (1.0 / t.sqrt());
 
-                t += dt;
+                t += Δt;
             }
 
             // Write last state.
-            let P = system.rho.get_probabilites_simd();
+            let P = system.ρ.get_probabilites_simd();
             local.trajectory_sum[STEP_COUNT as usize].add(&P);
             for (i, p) in P.v.iter().enumerate() {
                 local.trajectory_hist[STEP_COUNT as usize][i].add_values(p);
@@ -468,7 +471,7 @@ let gamma_phi = {gamma_phi};
     // TODO: actual time
     // TODO: fix magic number (simcount)
     for i in 0..=STEP_COUNT {
-        let t = i as f32 * dt;
+        let t = i as f32 * Δt;
         data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
