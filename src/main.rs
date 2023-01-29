@@ -35,36 +35,35 @@ const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
 const initial_probabilities: [f32; Operator::SIZE] = [
-    0.01, // 00
-    0.49, // 01
-    0.49, // 10
+    0.02, // 00
+    0.43, // 01
+    0.54, // 10
     0.01  // 11
 ];
 
 // Simulation constants
 const Δt: f32 = 0.05;
-const STEP_COUNT: u32 = 500;
+const STEP_COUNT: u32 = 600;
 const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 5;
+const HIST_BIN_COUNT: usize = 32;
+const SIMULATIONS_PER_THREAD: u32 = 2;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
-
 
 // Physical constants
 const κ:     f32 = 1.2;
-const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const κ_1:   f32 = 0.6; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
 const Δ_r:   f32 = 0.5;
 const β:    cf32 = Complex::new(0.5, 0.0);
 const γ_dec: f32 = 1.0;
-const η:     f32 = 0.9;
+const η:     f32 = 0.25;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 1.0;
 //const ddelta: f32 = delta_r - delta_s;
-const χ_base:   f32 = 0.6 / 100.0;
-const g:        f32 = 125.6637061435917 / 100.0;
-const ω_r:      f32 = 28368.582 / 100.0;
-const ω_s_base: f32 = 2049.6365 / 100.0;
-const Δ_s_base: f32 = 26318.94506957162 / 100.0;
+const χ_base:   f32 = 0.6 / 1.0;
+const g:        f32 = 125.6637061435917 / 1.0;
+const ω_r:      f32 = 28368.582 / 1000.0;
+const ω_s_base: f32 = 2049.6365 / 1000.0;
+const Δ_s_base: f32 = 26318.94506957162 / 1.0;
 
 const ω_b:       f32 = 0.1;
 const Δ_s:  [f32; 2] = [Δ_s_base+0., Δ_s_base-0.]; // |ω_r - ω_s|
@@ -232,6 +231,9 @@ impl QubitSystem {
         let sqrt_η = η.sqrt();
         let c_out_phased = c_out * ((I * Φ).exp());
         let dχρ = sqrt_η * (c_out_phased + c_out_phased.adjoint());
+
+        println!("H: {H}");
+        //panic!();
 
         Self {
             H,
