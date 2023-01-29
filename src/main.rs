@@ -33,6 +33,14 @@ const I: cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
+// Initial state probabilities
+const initial_probabilities: [f32; Operator::SIZE] = [
+    0.01, // 00
+    0.49, // 01
+    0.49, // 10
+    0.01  // 11
+];
+
 // Simulation constants
 const Δt: f32 = 0.05;
 const STEP_COUNT: u32 = 500;
@@ -40,6 +48,7 @@ const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
 const SIMULATIONS_PER_THREAD: u32 = 5;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
+
 
 // Physical constants
 const κ:     f32 = 1.2;
@@ -204,20 +213,8 @@ impl QubitSystem {
         //let hamiltonian = hamiltonian
         //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
-
-        // Initial state probabilities
-        let mut p = [
-            0.01, // 00
-            0.49, // 01
-            0.50, // 10
-            0.00  // 11
-        ];
-
-        // Transform into coefficients
-        for x in p.iter_mut() { *x = f32::sqrt(*x) }
-
         // Construct initial state
-        let ψ = Matrix::vector(&p);
+        let ψ = Matrix::vector(&initial_probabilities.map(|p| p.sqrt() ));
         let ρ = (&ψ * ψ.transpose()).to_operator();
 
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
