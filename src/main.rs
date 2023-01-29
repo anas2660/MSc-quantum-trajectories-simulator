@@ -1,4 +1,5 @@
 #![feature(portable_simd)]
+#![feature(array_zip)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
@@ -33,8 +34,8 @@ const MINUS_I: cf32 = Complex::new(0.0, -1.0);
 const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 // Simulation constants
-const Δt: f32 = 0.1;
-const STEP_COUNT: u32 = 700;
+const Δt: f32 = 0.05;
+const STEP_COUNT: u32 = 500;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
 const SIMULATIONS_PER_THREAD: u32 = 5;
@@ -44,21 +45,21 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 const κ:     f32 = 1.2;
 const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
 const Δ_r:   f32 = 0.5;
-const β:    cf32 = Complex::new(1.0, 0.0);
+const β:    cf32 = Complex::new(0.5, 0.0);
 const γ_dec: f32 = 1.0;
 const η:     f32 = 0.9;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 1.0;
 //const ddelta: f32 = delta_r - delta_s;
-const χ_base:   f32 = 0.6 / 1000.0;
-const g:        f32 = 125.6637061435917 / 1000.0;
-const ω_r:      f32 = 28368.582 / 1000.0;
-const ω_s_base: f32 = 2049.6365 / 1000.0;
-const Δ_s_base: f32 = 26318.94506957162 / 1000.0;
+const χ_base:   f32 = 0.6 / 100.0;
+const g:        f32 = 125.6637061435917 / 100.0;
+const ω_r:      f32 = 28368.582 / 100.0;
+const ω_s_base: f32 = 2049.6365 / 100.0;
+const Δ_s_base: f32 = 26318.94506957162 / 100.0;
 
 const ω_b:       f32 = 0.1;
 const Δ_s:  [f32; 2] = [Δ_s_base+0., Δ_s_base-0.]; // |ω_r - ω_s|
-const Δ_bs: [f32; 2] = [ω_s_base+0., ω_s_base-0.]; // ω_b - ω_s
+const Δ_b: [f32; 2] = [ω_s_base+0., ω_s_base-0.]; // ω_b - ω_s
 const Δ_br:      f32 = ω_r; // ω_b - ω_r
 const χ:    [f32; 2] = [χ_base; 2];
 
@@ -88,7 +89,7 @@ struct QubitSystem {
 }
 
 #[inline]
-fn commutator(a: Operator, b: Operator) -> Operator {
+fn commutator(a: &Operator, b: &Operator) -> Operator {
     &(a * b) - &(b * a)
 }
 
@@ -113,34 +114,29 @@ fn anti_tensor_commutator(lhs: &Matrix, rhs: &Matrix) -> Matrix {
     lhs.kronecker(rhs) + rhs.kronecker(lhs)
 }
 
-fn apply_individually(op: &Matrix) -> Operator {
-    let mut sum = Operator::zero();
+
+fn apply_individually_parts(op: &Matrix) -> [Operator; Operator::QUBIT_COUNT] {
     let identity = Matrix::identity(2);
-    for i in 0..Operator::QUBIT_COUNT {
+    let parts: [Operator; Operator::QUBIT_COUNT] = (0..Operator::QUBIT_COUNT).map(|i| {
         let mut tmp = if i == 0 { op.clone() } else { identity.clone() };
 
         for j in 1..Operator::QUBIT_COUNT {
             tmp = if i == j { tmp.kronecker(op) } else { tmp.kronecker(&identity) }
         }
-
-        sum += tmp.to_operator();
-    }
-    sum
+        tmp.to_operator()
+    }).collect::<Vec<_>>().try_into().unwrap(); // fix this
+    parts
 }
 
-fn apply_and_scale_individually(factors: [f32; Operator::QUBIT_COUNT], op: &Matrix) -> Operator {
-    let mut sum = Operator::zero();
-    let identity = Matrix::identity(2);
-    for i in 0..Operator::QUBIT_COUNT {
-        let mut tmp = if i == 0 { op.clone() } else { identity.clone() };
+fn apply_individually(op: &Matrix) -> Operator {
+    apply_individually_parts(op).iter().fold(Operator::zero(), |sum, x| &sum+x)
+}
 
-        for j in 1..Operator::QUBIT_COUNT {
-            tmp = if i == j { tmp.kronecker(op) } else { tmp.kronecker(&identity) }
-        }
-
-        sum += factors[i] * tmp.to_operator();
-    }
-    sum
+fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Matrix) -> Operator
+    where T: std::ops::Mul<Operator, Output = Operator>
+{
+    apply_individually_parts(op).iter()
+        .zip(factors).fold(Operator::zero(), |sum, (part, factor)| sum + factor * (*part) )
 }
 
 
@@ -166,12 +162,6 @@ impl QubitSystem {
 
         let N = a.dagger() * a;
 
-        let zero = Matrix::vector(&[1., 0.]);
-        let one = Matrix::vector(&[0., 1.]);
-
-        let bra = |m: &Matrix| m.dagger();
-        let ket = |m: &Matrix| m.clone();
-
         /////let hamiltonian =
         /////    //+ g * (a * sigma_plus + a.dagger() * sigma_minus)
         /////    //////+ chi*(&sigma_z + &identity)
@@ -187,14 +177,25 @@ impl QubitSystem {
         ///     + delta_r * N
         ///     + chi[0] * N * sigma_z_4x4;
         ///     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
+        //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
 
         // Hamiltonian
-        let H =
-            //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
-            0.5 * apply_and_scale_individually(Δ_bs, &σ_z)
-            + I * (2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a) // Detuning
-            + Δ_br * N
-            + (N + 0.5*identity) * χσ_z;
+        let factors: [Operator; Operator::QUBIT_COUNT] = Δ_b.zip(χ).map(|(Δ_bs, χ_s)| {
+            0.5*Δ_bs*identity + χ_s*N
+        }).try_into().unwrap();
+
+        let sum_σ_minus = apply_individually(&σ_minus);
+        let term3 = apply_individually_parts(&σ_plus).iter().zip(χ).fold(Operator::zero(), |sum, (σ_ps, χ_s)| {
+            sum + χ_s * σ_ps * sum_σ_minus
+        });
+
+        let H = Δ_br * N
+            + apply_and_scale_individually(factors, &σ_z)
+            + term3
+            + (2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
+
+            //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
+            //+ (N + 0.5*identity) * χσ_z
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
 
         //let hamiltonian = omega_r * a.dagger() * a + (omega_s + 2.0 * (g*g/delta_s) * (a.dagger()*a + 0.5*Operator::identity()));
@@ -208,8 +209,8 @@ impl QubitSystem {
         let mut p = [
             0.01, // 00
             0.49, // 01
-            0.49, // 10
-            0.01  // 11
+            0.50, // 10
+            0.00  // 11
         ];
 
         // Transform into coefficients
@@ -258,7 +259,7 @@ impl QubitSystem {
             - 0.5 * anticommutator(op_dag * operator, self.ρ)
     }
 
-    fn dv(&mut self, rho: Operator) -> (Operator, ()/*cf32*/) {
+    fn dv(&self, rho: &Operator) -> (Operator, ()/*cf32*/) {
         let cop = self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
         let cop_rho = cop * self.ρ;
@@ -270,7 +271,7 @@ impl QubitSystem {
 
         // let a = self.measurement;
         (
-            MINUS_I * commutator(self.H, rho)
+            MINUS_I * commutator(&self.H, &rho)
                 ////+ self.lindblad(a)
                 //+ self.lindblad(&self.c1) // Photon field transmission/losses
                 ////+ self.lindblad(&self.c2) // Decay to ground state
@@ -283,10 +284,10 @@ impl QubitSystem {
     }
 
     fn runge_kutta(&mut self, time_step: f32) {
-        let (k0, dY0) = self.dv(self.ρ);
-        let (k1, dY1) = self.dv(self.ρ + 0.5 * time_step * k0);
-        let (k2, dY2) = self.dv(self.ρ + 0.5 * time_step * k1);
-        let (k3, dY3) = self.dv(self.ρ + time_step * k2);
+        let (k0, dY0) = self.dv(&self.ρ);
+        let (k1, dY1) = self.dv(&(self.ρ + 0.5 * time_step * k0));
+        let (k2, dY2) = self.dv(&(self.ρ + 0.5 * time_step * k1));
+        let (k3, dY3) = self.dv(&(self.ρ + time_step * k2));
         let t3 = time_step / 3.0;
         self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));

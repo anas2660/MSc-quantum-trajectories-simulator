@@ -195,11 +195,20 @@ impl Mul<f32> for Operator {
         &self * rhs
     }
 }
+
 impl Mul<Operator> for f32 {
     type Output = Operator;
     #[inline]
     fn mul(self, rhs: Operator) -> Self::Output {
         &rhs * self
+    }
+}
+
+impl Mul<&Operator> for f32 {
+    type Output = Operator;
+    #[inline]
+    fn mul(self, rhs: &Operator) -> Self::Output {
+        rhs * self
     }
 }
 
