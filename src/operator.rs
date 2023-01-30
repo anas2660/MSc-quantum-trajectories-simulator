@@ -90,8 +90,17 @@ impl Operator {
     }
 
     #[inline]
-    pub fn scale(&self, rhs: f32) -> Self {
-        self * rhs
+    pub fn scale<'a, 'b, T>(&'a mut self, scalar: T) -> &'a Self
+    where T: Mul<&'b Complex, Output = Complex> + Copy
+    //         std::ops::Mul<&num::Complex, Output = num::Complex>
+    {
+        for row in self.elements.iter_mut() {
+            for element in row.iter_mut() {
+                element.scale(scalar);
+                //*element = scalar* &*element;
+            }
+        }
+        self
     }
 
     pub fn pow(&self, n: u32) -> Operator {

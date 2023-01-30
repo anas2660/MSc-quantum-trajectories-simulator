@@ -84,6 +84,17 @@ impl Complex {
     pub fn first(&self) -> (f32, f32) {
         (self.real.as_array()[0], self.imag.as_array()[0])
     }
+
+    #[inline]
+    pub fn scale<'a, 'b, T>(&'a mut self, scalar: T) -> &'a Self
+    where T: Mul<&'b Self, Output = Self>
+    {
+        unsafe { // cant get this to understand that this should be fine
+            *self = scalar * &*(self as *mut Self);
+        }
+        self
+    }
+
 }
 
 impl Display for Complex {
@@ -332,6 +343,35 @@ impl Mul<Complex> for f32 {
         &rhs * &V::splat(self)
     }
 }
+
+impl Mul<&Complex> for f32 {
+    type Output = Complex;
+
+    #[inline]
+    fn mul(self, rhs: &Complex) -> Self::Output {
+        rhs * &V::splat(self)
+    }
+}
+
+impl Mul<&Complex> for &Real {
+    type Output = Complex;
+    #[inline]
+    fn mul(self, rhs: &Complex) -> Self::Output {
+        rhs * self
+    }
+}
+
+impl Mul<&Complex> for Real {
+    type Output = Complex;
+    #[inline]
+    fn mul(self, rhs: &Complex) -> Self::Output {
+        Complex {
+            real: rhs.real * self,
+            imag: rhs.imag * self
+        }
+    }
+}
+
 
 impl MulAssign<&Complex> for Complex {
     #[inline]
