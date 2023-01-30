@@ -163,7 +163,7 @@ impl QubitSystem {
             (r==c) as u32 as f32
                 * (2.*κ_1).sqrt() * β
                 / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (i, χ_n)| {
-                    acc - (((c>>i)&1)*2 - 1) as f32 * χ_n // TODO: Check this
+                    acc - (((c>>i)&1) as i32 * 2 - 1) as f32 * χ_n // TODO: Check this
                 }))
         });
 
