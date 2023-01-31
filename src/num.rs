@@ -275,13 +275,12 @@ impl Mul<&Complex> for &Complex {
 
     #[inline]
     fn mul(self, rhs: &Complex) -> Self::Output {
-        return Complex {
-            real: self.real * rhs.real - self.imag * rhs.imag,
-            imag: self.real * rhs.imag + self.imag * rhs.real,
-        };
+        //Complex {
+        //    real: self.real * rhs.real - self.imag * rhs.imag,
+        //    imag: self.real * rhs.imag + self.imag * rhs.real,
+        //}
 
-        // FMA implementation (slower for some reason)
-        /*
+        // FMA implementation
         unsafe {
             let mut real: __m256;
             let mut imag: __m256;
@@ -291,17 +290,17 @@ impl Mul<&Complex> for &Complex {
                 "vmulps  {imag}, {rhsreal}, {selfimag}",
                 "vfmsub231ps {real}, {rhsreal}, {selfreal}",
                 "vfmadd231ps {imag}, {selfreal}, {rhsimag}",
-                real = out(ymm_reg) real,
-                imag = out(ymm_reg) imag,
-                rhsreal = in(ymm_reg) Into::<__m256>::into(rhs.real),
-                rhsimag = in(ymm_reg) Into::<__m256>::into(rhs.imag),
+                real     = out(ymm_reg) real,
+                imag     = out(ymm_reg) imag,
+                rhsreal  = in(ymm_reg) Into::<__m256>::into(rhs.real),
+                rhsimag  = in(ymm_reg) Into::<__m256>::into(rhs.imag),
                 selfreal = in(ymm_reg) Into::<__m256>::into(self.real),
                 selfimag = in(ymm_reg) Into::<__m256>::into(self.imag),
+                options(nostack)
             );
 
             Complex { real: real.into(), imag: imag.into() }
         }
-        */
     }
 }
 

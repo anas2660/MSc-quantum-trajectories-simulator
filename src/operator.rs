@@ -115,7 +115,6 @@ impl Operator {
         (0..n).fold(Operator::identity(), |p, _| p*self)
     }
 
-
     pub fn lindblad(&mut self, ρ: &Operator, op: &Operator) -> &mut Operator {
         let op_dag = op.dagger();
         let op_dag_op = &op_dag * op;
@@ -125,8 +124,6 @@ impl Operator {
                 - 0.5 * (&op_dag_op * ρ + ρ * &op_dag_op))
         )
     }
-
-
 
     #[inline]
     pub fn trace(&self) -> Complex {

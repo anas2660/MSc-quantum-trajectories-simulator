@@ -28,10 +28,10 @@ use pipewriter::*;
 #[allow(non_camel_case_types)]
 type cf32 = Complex;
 
-const ONE: cf32 = Complex::new(1.0, 0.0);
-const I: cf32 = Complex::new(0.0, 1.0);
+const ONE:     cf32 = Complex::new(1.0, 0.0);
+const I:       cf32 = Complex::new(0.0, 1.0);
 const MINUS_I: cf32 = Complex::new(0.0, -1.0);
-const ZERO: cf32 = Complex::new(0.0, 0.0);
+const ZERO:    cf32 = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
 const initial_probabilities: [f32; Operator::SIZE] = [
