@@ -42,22 +42,22 @@ const initial_probabilities: [f32; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: f32 = 0.1;
-const STEP_COUNT: u32 = 1000;
+const Δt: f32 = 0.05;
+const STEP_COUNT: u32 = 4000;
 const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 64;
-const SIMULATIONS_PER_THREAD: u32 = 200;
+const HIST_BIN_COUNT: usize = 128;
+const SIMULATIONS_PER_THREAD: u32 = 20;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     f32 = 1.2;
-const κ_1:   f32 = 0.5; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
 const Δ_r:   f32 = 0.5;
 const β:    cf32 = Complex::new(1.2, 0.0); // Max value is kappa
 const γ_dec: f32 = 1.0;
-const η:     f32 = 0.2;
+const η:     f32 = 0.5;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
-const γ_φ:   f32 = 1.0;
+const γ_φ:   f32 = 0.001;
 //const ddelta: f32 = delta_r - delta_s;
 const χ_base:   f32 = 0.6;
 const g:        f32 = 125.6637061435917;
@@ -224,7 +224,7 @@ impl QubitSystem {
         //let c_out = (c_out.kronecker(&identity) + identity.kronecker(&c_out)).to_operator();
         //let c1 = (c1.kronecker(&identity) + identity.kronecker(&c1)).to_operator();
         let c2 = (c2.kronecker(&identity) + identity.kronecker(&c2)).to_operator();
-        let c3 = [c3.kronecker(&identity).to_operator(), identity.kronecker(&c3).to_operator()];
+        let c3 = apply_individually_parts(&c3);
 
         let sqrt_η = η.sqrt();
         let c_out_phased = c_out * ((I * Φ).exp());
@@ -249,13 +249,6 @@ impl QubitSystem {
         }
     }
 
-    fn lindblad(&self, operator: &Operator) -> Operator {
-        let op_dag = operator.dagger();
-
-        operator * self.ρ * op_dag
-            - 0.5 * anticommutator(op_dag * operator, self.ρ)
-    }
-
     fn dv(&self, rho: &Operator) -> (Operator, ()/*cf32*/) {
         let cop = &self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
@@ -268,13 +261,17 @@ impl QubitSystem {
 
         // let a = self.measurement;
         (
-            commutator(&self.H, &rho).scale(&MINUS_I)
+            *commutator(&self.H, &rho)
+                .scale(&MINUS_I)
                 ////+ self.lindblad(a)
-                //+ self.lindblad(&self.c1) // Photon field transmission/losses
-                ////+ self.lindblad(&self.c2) // Decay to ground state
-                //+ self.lindblad(&self.c3[0]) + self.lindblad(&self.c3[1])
-                + &self.lindblad(cop) // c_out
-                + (h_cal.scale(&self.dW[0]) + h_cal_neg.scale(&self.dW[1])).scale(self.sqrt_η) * self.ρ,
+                //.lindblad(&self.ρ, &self.c1) // Photon field transmission/losses
+                //////+ self.lindblad(&self.c2) // Decay to ground state
+                //.lindblad(&self.ρ, &self.c3[0]).lindblad(&self.ρ, &self.c3[1])
+                .lindblad(&self.ρ, cop) // c_out
+                .add(
+                    &(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
+                            * &self.ρ)
+                ),
             (),
         )
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein

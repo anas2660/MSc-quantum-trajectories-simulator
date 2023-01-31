@@ -90,7 +90,7 @@ impl Operator {
     }
 
     #[inline]
-    pub fn scale<'a, 'b, T>(&'a mut self, scalar: T) -> &'a Self
+    pub fn scale<'a, 'b, T>(&'a mut self, scalar: T) -> &'a mut Self
         where T: Mul<&'b Complex, Output = Complex> + Copy
     {
         for row in self.elements.iter_mut() {
@@ -101,9 +101,31 @@ impl Operator {
         self
     }
 
+    #[inline]
+    pub fn add(&mut self, op: &Operator) -> &mut Self {
+        for row in 0..Operator::SIZE {
+            for col in 0..Operator::SIZE {
+                self.elements[row][col] += op.elements[row][col];
+            }
+        }
+        self
+    }
+
     pub fn pow(&self, n: u32) -> Operator {
         (0..n).fold(Operator::identity(), |p, _| p*self)
     }
+
+
+    pub fn lindblad(&mut self, ρ: &Operator, op: &Operator) -> &mut Operator {
+        let op_dag = op.dagger();
+        let op_dag_op = &op_dag * op;
+
+        self.add(
+            &(op * ρ * &op_dag
+                - 0.5 * (&op_dag_op * ρ + ρ * &op_dag_op))
+        )
+    }
+
 
 
     #[inline]
