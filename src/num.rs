@@ -87,7 +87,7 @@ impl Complex {
 
     #[inline]
     pub fn scale<'a, 'b, T>(&'a mut self, scalar: T) -> &'a Self
-    where T: Mul<&'b Self, Output = Self>
+        where T: Mul<&'b Self, Output = Self>
     {
         unsafe { // cant get this to understand that this should be fine
             *self = scalar * &*(self as *mut Self);

@@ -35,15 +35,15 @@ const ZERO: cf32 = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
 const initial_probabilities: [f32; Operator::SIZE] = [
-    0.02, // 00
-    0.43, // 01
+    0.01, // 00
+    0.44, // 01
     0.54, // 10
     0.01  // 11
 ];
 
 // Simulation constants
-const Δt: f32 = 0.2;
-const STEP_COUNT: u32 = 800;
+const Δt: f32 = 0.1;
+const STEP_COUNT: u32 = 1000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 200;
@@ -51,11 +51,11 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     f32 = 1.2;
-const κ_1:   f32 = 0.12; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const κ_1:   f32 = 0.5; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
 const Δ_r:   f32 = 0.5;
-const β:    cf32 = Complex::new(0.8, 0.0);
+const β:    cf32 = Complex::new(1.2, 0.0); // Max value is kappa
 const γ_dec: f32 = 1.0;
-const η:     f32 = 0.1;
+const η:     f32 = 0.2;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 1.0;
 //const ddelta: f32 = delta_r - delta_s;
@@ -159,12 +159,12 @@ impl QubitSystem {
         let χσ_z = apply_and_scale_individually(χ, &σ_z);
         //let a = (2.0*κ_1).sqrt() * β / (Δ_r*identity + I*χσ_z + κ*identity);
 
-        let a = Operator::from_fn(|r,c| {
+        let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as f32
                 * (2.*κ_1).sqrt() * β
-                / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (i, χ_n)| {
-                    acc - (((c>>i)&1) as i32 * 2 - 1) as f32 * χ_n // TODO: Check this
-                }))
+                / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (n, χ_n)| {
+                    acc - (((c>>n)&1) as i32 * 2 - 1) as f32 * χ_n // TODO: Check this
+            }))
         });
 
         let N = a.dagger() * a;
@@ -199,8 +199,7 @@ impl QubitSystem {
         let H = Δ_br * N
             + apply_and_scale_individually(factors, &σ_z)
             + term3
-            + (2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
-
+            + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
             //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
             //+ (N + 0.5*identity) * χσ_z
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
