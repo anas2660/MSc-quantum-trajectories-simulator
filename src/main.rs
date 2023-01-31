@@ -59,11 +59,11 @@ const η:     f32 = 0.2;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 1.0;
 //const ddelta: f32 = delta_r - delta_s;
-const χ_base:   f32 = 0.6 / 1.0;
-const g:        f32 = 125.6637061435917 / 1.0;
+const χ_base:   f32 = 0.6;
+const g:        f32 = 125.6637061435917;
 const ω_r:      f32 = 28368.582 / 1000.0;
 const ω_s_base: f32 = 2049.6365 / 1000.0;
-const Δ_s_base: f32 = 26318.94506957162 / 1.0;
+const Δ_s_base: f32 = 26318.94506957162;
 
 const ω_b:       f32 = 0.1;
 const Δ_s:  [f32; 2] = [Δ_s_base+0., Δ_s_base-0.]; // |ω_r - ω_s|
