@@ -80,8 +80,17 @@ impl Operator {
         result
     }
 
+    #[inline]
     pub fn dagger(&self) -> Self {
-        self.conjugate().transpose()
+        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                unsafe {
+                    (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y].conjugate();
+                }
+            }
+        }
+        unsafe { result.assume_init() }
     }
 
     #[inline]
@@ -105,7 +114,7 @@ impl Operator {
     pub fn add(&mut self, op: &Operator) -> &mut Self {
         for row in 0..Operator::SIZE {
             for col in 0..Operator::SIZE {
-                self.elements[row][col] += op.elements[row][col];
+                self.elements[row][col] += &op.elements[row][col];
             }
         }
         self
@@ -115,6 +124,7 @@ impl Operator {
         (0..n).fold(Operator::identity(), |p, _| p*self)
     }
 
+    #[inline]
     pub fn lindblad(&mut self, ρ: &Operator, op: &Operator) -> &mut Operator {
         let op_dag = op.dagger();
         let op_dag_op = &op_dag * op;
@@ -136,7 +146,7 @@ impl Operator {
 
     #[inline]
     pub fn get_probabilites_simd(&self) -> StateProbabilitiesSimd {
-        let mut result = StateProbabilitiesSimd { v: [Real::splat(0.0); Operator::SIZE] };
+        let mut result: StateProbabilitiesSimd = unsafe { std::mem::zeroed() };
         for i in 0..Operator::SIZE {
              result.v[i] = self[(i,i)].real()
         }
@@ -332,7 +342,11 @@ impl Add<Operator> for Operator {
 impl AddAssign for Operator {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = (&(*self)) + &rhs;
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                self.elements[y][x] += rhs.elements[y][x];
+            }
+        }
     }
 }
 

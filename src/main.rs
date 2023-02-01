@@ -2,6 +2,7 @@
 #![feature(array_zip)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
+#![allow(confusable_idents)]
 
 mod num;
 use num::*;
@@ -43,10 +44,10 @@ const initial_probabilities: [f32; Operator::SIZE] = [
 
 // Simulation constants
 const Δt: f32 = 0.05;
-const STEP_COUNT: u32 = 4000;
+const STEP_COUNT: u32 = 400;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 20;
+const SIMULATIONS_PER_THREAD: u32 = 300;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
@@ -175,15 +176,15 @@ impl QubitSystem {
         /////    //+ omega * (ket(&one)*bra(&zero) + ket(&zero)*bra(&one)) // ω(|1X0| + |0X1|)
         /////    ;
 
-        /// REFERENCE
-        /// let sigma_z_4x4 = apply_individually(&sigma_z);
-        /// let hamiltonian =
-        ///     //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
-        ///     0.5 * delta_s[0] * sigma_z_4x4
-        ///     + I * (2.0 * kappa_1).sqrt() * (beta * a.dagger() - beta.conjugate() * a) // Detuning
-        ///     + delta_r * N
-        ///     + chi[0] * N * sigma_z_4x4;
-        ///     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
+        // REFERENCE
+        // let sigma_z_4x4 = apply_individually(&sigma_z);
+        // let hamiltonian =
+        //     //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
+        //     0.5 * delta_s[0] * sigma_z_4x4
+        //     + I * (2.0 * kappa_1).sqrt() * (beta * a.dagger() - beta.conjugate() * a) // Detuning
+        //     + delta_r * N
+        //     + chi[0] * N * sigma_z_4x4;
+        //     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
         //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
 
         // Hamiltonian
@@ -277,12 +278,12 @@ impl QubitSystem {
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
-    fn runge_kutta(&mut self, time_step: f32) {
+    fn runge_kutta(&mut self) {
         let (k0, dY0) = self.dv(&self.ρ);
-        let (k1, dY1) = self.dv(&(self.ρ + 0.5 * time_step * k0));
-        let (k2, dY2) = self.dv(&(self.ρ + 0.5 * time_step * k1));
-        let (k3, dY3) = self.dv(&(self.ρ + time_step * k2));
-        let t3 = time_step / 3.0;
+        let (k1, dY1) = self.dv(&(self.ρ + 0.5 * Δt * k0));
+        let (k2, dY2) = self.dv(&(self.ρ + 0.5 * Δt * k1));
+        let (k3, dY3) = self.dv(&(self.ρ + Δt * k2));
+        let t3 = Δt / 3.0;
         self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
@@ -350,10 +351,10 @@ let γ_φ = {γ_φ};
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
 
             // Initialize system
-            let before = now.elapsed().as_millis();
+            //let before = now.elapsed().as_millis();
             let mut system = initial_system.clone();
-            let after = now.elapsed().as_millis();
-            total_section_time += after - before;
+            //let after = now.elapsed().as_millis();
+            //total_section_time += after - before;
 
             let mut t = Δt;
 
@@ -389,7 +390,7 @@ let γ_φ = {γ_φ};
                 }
 
                 // Do the runge-kutta4 step.
-                system.runge_kutta(Δt);
+                system.runge_kutta();
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }

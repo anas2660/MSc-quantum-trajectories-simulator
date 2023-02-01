@@ -233,6 +233,7 @@ impl Div<&Complex> for &Complex {
 
     #[inline]
     fn div(self, rhs: &Complex) -> Self::Output {
+        // TODO: FMA
         let denum = rhs.real * rhs.real + rhs.imag * rhs.imag;
         Complex {
             real: (self.real * rhs.real + self.imag * rhs.imag) / denum,
@@ -389,14 +390,16 @@ impl MulAssign<&V> for Complex {
 impl AddAssign<&Complex> for Complex {
     #[inline]
     fn add_assign(&mut self, rhs: &Complex) {
-        *self = &(*self) + rhs;
+        self.real += rhs.real;
+        self.imag += rhs.imag;
     }
 }
 
 impl AddAssign<Complex> for Complex {
     #[inline]
     fn add_assign(&mut self, rhs: Complex) {
-        *self = &(*self) + &rhs;
+        self.real += rhs.real;
+        self.imag += rhs.imag;
     }
 }
 
