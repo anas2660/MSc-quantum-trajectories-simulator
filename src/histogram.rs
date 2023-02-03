@@ -20,7 +20,8 @@ impl<const BIN_COUNT: usize> Histogram<BIN_COUNT> {
             .simd_clamp(u32x8::splat(0), u32x8::splat(BIN_COUNT as u32 - 1));
 
         for index in indices.as_array() {
-            self.bins[*index as usize] += 1;
+            unsafe { *self.bins.get_unchecked_mut(*index as usize) += 1 };
+            // self.bins[*index as usize] += 1;
         }
     }
 
