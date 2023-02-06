@@ -60,25 +60,18 @@ const η:     f32 = 0.5;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 0.001;
 //const ddelta: f32 = delta_r - delta_s;
-const χ_base:   f32 = 0.6;
-const g:        f32 = 125.6637061435917;
-const ω_r:      f32 = 28368.582 / 1000.0;
-const ω_s_base: f32 = 2049.6365 / 1000.0;
-const Δ_s_base: f32 = 26318.94506957162;
+const χ_0:   f32 = 0.6;
+const g:     f32 = 125.6637061435917;
+const ω_r:   f32 = 28368.582 / 1000.0;
+const ω_s_0: f32 = 2049.6365 / 1000.0;
+const Δ_s_0: f32 = 26318.94506957162 / 1000.0;
 
 const ω_b:       f32 = 0.1;
-const Δ_s:  [f32; 2] = [Δ_s_base+0., Δ_s_base-0.]; // |ω_r - ω_s|
-const Δ_b:  [f32; 2] = [ω_s_base+0., ω_s_base-0.]; //  ω_b - ω_s
+const Δ_s:  [f32; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
+const Δ_b:  [f32; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
 const Δ_br:      f32 = ω_r; // ω_b - ω_r
-const χ:    [f32; 2] = [χ_base; 2];
-
-
-// From qutip implementation
-//macro_rules! lowering {
-//    ($D:expr) => {
-//        SMatrix::<f32, $D, $D>::from_fn(|r, c| if r + 1 == c { (c as f32).sqrt() } else { 0.0 })
-//    };
-//}
+const Δ_r:       f32 = ω_r ;
+const χ:    [f32; 2] = [χ_0; 2];
 
 #[derive(Clone)]
 struct QubitSystem {
@@ -152,9 +145,9 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 impl QubitSystem {
     fn new() -> Self {
         #[allow(unused_variables)]
-        let σ_plus: Matrix = Matrix::new(0.0, 1.0, 0.0, 0.0);
-        let σ_z: Matrix = Matrix::new(1.0, 0.0, 0.0, -1.0);
-        let σ_minus: Matrix = Matrix::new(0.0, 0.0, 1.0, 0.0);
+        let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
+        let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
+        let σ_minus  = Matrix::new(0.0, 0.0, 1.0, 0.0);
         let identity = Operator::identity();
 
         let χσ_z = apply_and_scale_individually(χ, &σ_z);
@@ -211,6 +204,9 @@ impl QubitSystem {
         //let hamiltonian = hamiltonian
         //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
+        // Remove any non-hermitian numerical error
+        let H = &H+(H.conjugate()-H).scale(0.5);
+
         // Construct initial state
         let ψ = Matrix::vector(&initial_probabilities.map(|p| p.sqrt() ));
         let ρ = (&ψ * ψ.transpose()).to_operator();
@@ -231,8 +227,7 @@ impl QubitSystem {
         let c_out_phased = c_out * ((I * Φ).exp());
         let dχρ = sqrt_η * (c_out_phased + c_out_phased.adjoint());
 
-        println!("H: {H}");
-        //panic!();
+        println!("H:\n{H}");
 
         Self {
             H,
@@ -287,6 +282,11 @@ impl QubitSystem {
         self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
+
+    fn euler(&mut self) {
+        self.ρ += self.dv(&self.ρ).0 * Δt;
+    }
+
 }
 
 fn simulate() {
@@ -391,6 +391,7 @@ let γ_φ = {γ_φ};
 
                 // Do the runge-kutta4 step.
                 system.runge_kutta();
+                // system.euler();
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }

@@ -61,13 +61,14 @@ hist_metadata = np.frombuffer(hist_data_buffer, np.uint32, count=3)
 hist_state_count = hist_metadata[0]
 hist_step_count = hist_metadata[1]
 hist_height = hist_metadata[2]
-hist_data = np.reshape(np.frombuffer(hist_data_buffer, np.float32, offset=12), (hist_step_count, hist_height))
+hist_data = np.reshape(np.frombuffer(hist_data_buffer, np.uint32, offset=12), (hist_step_count, hist_height))
 
 from matplotlib import colors
 from matplotlib import pyplot as plt, cm
 
 fig, ax = plt.subplots()
-im = ax.imshow(np.swapaxes(hist_data + np.min(hist_data[hist_data>0]), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
+print(np.max(hist_data))
+im = ax.imshow(np.swapaxes(np.minimum(hist_data + np.min(hist_data[hist_data>0]), 5000), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
                cmap=cm.turbo,
                norm=colors.LogNorm()
                )
@@ -78,7 +79,10 @@ ax.set_yticks(ticks=(np.arange(hist_state_count)+0.5),
            labels = [FORMAT_STRING.format(i) for i in np.arange(hist_state_count)])
 ax.grid(True, which='minor', linewidth=2.0)
 ax.grid(False, which='major')
-#fig.colorbar(im, norm=colors.LogNorm())
+fig.colorbar(im,
+             norm=colors.LogNorm()
+             )
+plt.tight_layout()
 plt.show()
 
 
