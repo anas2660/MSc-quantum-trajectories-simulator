@@ -53,7 +53,6 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 // Physical constants
 const κ:     f32 = 1.2;
 const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const Δ_r:   f32 = 0.5;
 const β:    cf32 = Complex::new(1.2, 0.0); // Max value is kappa
 const γ_dec: f32 = 1.0;
 const η:     f32 = 0.5;
@@ -70,7 +69,7 @@ const ω_b:       f32 = 0.1;
 const Δ_s:  [f32; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
 const Δ_b:  [f32; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
 const Δ_br:      f32 = ω_r; // ω_b - ω_r
-const Δ_r:       f32 = ω_r ;
+const Δ_r:       f32 = ω_r;
 const χ:    [f32; 2] = [χ_0; 2];
 
 #[derive(Clone)]
