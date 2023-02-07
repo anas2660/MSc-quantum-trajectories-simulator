@@ -12,8 +12,8 @@ mod matrix;
 use matrix::*;
 mod histogram;
 use histogram::*;
-// mod hamiltonian;
-// use hamiltonian::*;
+mod hamiltonian;
+use hamiltonian::*;
 
 use rand_distr::StandardNormal;
 use std::{
@@ -74,7 +74,6 @@ const χ:    [f32; 2] = [χ_0; 2];
 
 #[derive(Clone)]
 struct QubitSystem {
-    H: Operator,
     ρ: Operator,
     Y: cf32,
     //t: f32
@@ -142,7 +141,7 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 
 
 impl QubitSystem {
-    fn new() -> Self {
+    fn new() -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
         let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
@@ -228,23 +227,27 @@ impl QubitSystem {
 
         println!("H:\n{H}");
 
-        Self {
-            H,
-            ρ,
-            Y: ZERO,
-            sqrt_η,
-            c_out_phased,
-            dχρ,
-            rng: thread_rng(),
-            measurement: Operator::from_fn(|r, c| ONE * (r * c) as f32),
-            c1,
-            c2,
-            c3,
-            dW: [Real::splat(0.0); 2],
-        }
+        let circuit = QuantumCircuit::new(&[(H, 10.0)]);
+
+        (
+            Self {
+                ρ,
+                Y: ZERO,
+                sqrt_η,
+                c_out_phased,
+                dχρ,
+                rng: thread_rng(),
+                measurement: Operator::from_fn(|r, c| ONE * (r * c) as f32),
+                c1,
+                c2,
+                c3,
+                dW: [Real::splat(0.0); 2],
+            },
+            circuit
+        )
     }
 
-    fn dv(&self, rho: &Operator) -> (Operator, ()/*cf32*/) {
+    fn dv(&self, H: &Operator, rho: &Operator) -> (Operator, ()/*cf32*/) {
         let cop = &self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
         let cop_rho = cop * self.ρ;
@@ -256,7 +259,7 @@ impl QubitSystem {
 
         // let a = self.measurement;
         (
-            *commutator(&self.H, &rho)
+            *commutator(H, rho)
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
                 //.lindblad(&self.ρ, &self.c1) // Photon field transmission/losses
@@ -272,18 +275,18 @@ impl QubitSystem {
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     }
 
-    fn runge_kutta(&mut self) {
-        let (k0, dY0) = self.dv(&self.ρ);
-        let (k1, dY1) = self.dv(&(self.ρ + 0.5 * Δt * k0));
-        let (k2, dY2) = self.dv(&(self.ρ + 0.5 * Δt * k1));
-        let (k3, dY3) = self.dv(&(self.ρ + Δt * k2));
+    fn runge_kutta(&mut self, H: &Operator) {
+        let (k0, dY0) = self.dv(H, &self.ρ);
+        let (k1, dY1) = self.dv(H, &(self.ρ + 0.5 * Δt * k0));
+        let (k2, dY2) = self.dv(H, &(self.ρ + 0.5 * Δt * k1));
+        let (k3, dY3) = self.dv(H, &(self.ρ + Δt * k2));
         let t3 = Δt / 3.0;
         self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 
-    fn euler(&mut self) {
-        self.ρ += self.dv(&self.ρ).0 * Δt;
+    fn euler(&mut self, H: &Operator) {
+        self.ρ += self.dv(H, &self.ρ).0 * Δt;
     }
 
 }
@@ -342,7 +345,7 @@ let γ_φ = {γ_φ};
         let mut total_section_time = 0;
 
         // Create initial system.
-        let initial_system = QubitSystem::new();
+        let (initial_system, circuit) = QubitSystem::new();
 
         let one_over_sqrtdt = Real::splat(1.0 / Δt.sqrt());
 
@@ -352,6 +355,8 @@ let γ_φ = {γ_φ};
             // Initialize system
             //let before = now.elapsed().as_millis();
             let mut system = initial_system.clone();
+            let mut circuit_state = circuit.make_new_state();
+
             //let after = now.elapsed().as_millis();
             //total_section_time += after - before;
 
@@ -363,8 +368,15 @@ let γ_φ = {γ_φ};
 
             let mut J = ZERO;
 
+            let (mut H, mut steps_to_next_gate) = circuit_state.next();
+
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
+                if steps_to_next_gate == 0 {
+                    (H, steps_to_next_gate) = circuit_state.next();
+                }
+                steps_to_next_gate -= 1;
+
                 // Write current state.
                 let P = system.ρ.get_probabilites_simd();
                 local.trajectory_sum[step].add(&P);
@@ -389,7 +401,7 @@ let γ_φ = {γ_φ};
                 }
 
                 // Do the runge-kutta4 step.
-                system.runge_kutta();
+                system.runge_kutta(H);
                 // system.euler();
 
                 // Check for NANs
