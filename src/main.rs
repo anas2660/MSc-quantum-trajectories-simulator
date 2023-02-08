@@ -247,28 +247,28 @@ impl QubitSystem {
         )
     }
 
-    fn dv(&self, H: &Operator, rho: &Operator) -> (Operator, ()/*cf32*/) {
+    fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cf32*/) {
         let cop = &self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
-        let cop_rho = cop * self.ρ;
-        let rho_copa = self.ρ * copa;
-        let last_term = (cop_rho + copa * self.ρ).trace() * self.ρ;
+        let cop_rho = cop * ρ;
+        let rho_copa = ρ * copa;
+        let last_term = (cop_rho + copa * ρ).trace() * ρ;
 
         let mut h_cal     = cop_rho + rho_copa - last_term;
         let mut h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
 
         // let a = self.measurement;
         (
-            *commutator(H, rho)
+            *commutator(H, ρ)
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
-                //.lindblad(&self.ρ, &self.c1) // Photon field transmission/losses
+                .lindblad(ρ, &self.c1) // Photon field transmission/losses
                 //////+ self.lindblad(&self.c2) // Decay to ground state
-                //.lindblad(&self.ρ, &self.c3[0]).lindblad(&self.ρ, &self.c3[1])
-                .lindblad(&self.ρ, cop) // c_out
+                .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
+                .lindblad(ρ, cop) // c_out
                 .add(
                     &(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
-                            * &self.ρ)
+                            * ρ)
                 ),
             (),
         )
