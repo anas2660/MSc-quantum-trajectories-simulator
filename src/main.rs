@@ -18,7 +18,7 @@ use hamiltonian::*;
 use rand_distr::StandardNormal;
 use std::{
     io::Write,
-    simd::{self, SimdPartialOrd, ToBitMask},
+    simd::{self, SimdPartialOrd, ToBitMask}, f32::consts::SQRT_2,
 };
 
 use rand::{rngs::ThreadRng, thread_rng, Rng};
@@ -36,26 +36,30 @@ const ZERO:    cf32 = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
 const initial_probabilities: [f32; Operator::SIZE] = [
-    0.01, // 00
-    0.44, // 01
-    0.54, // 10
-    0.01  // 11
+    1.0, // 00
+    0.0, // 01
+    0.0, // 10
+    0.00  // 11
+    //0.01, // 00
+    //0.44, // 01
+    //0.54, // 10
+    //0.01  // 11
 ];
 
 // Simulation constants
-const Δt: f32 = 0.05;
-const STEP_COUNT: u32 = 400;
+const Δt: f32 = 0.02;
+const STEP_COUNT: u32 = 1000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 300;
+const SIMULATIONS_PER_THREAD: u32 = 500;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     f32 = 1.2;
-const κ_1:   f32 = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cf32 = Complex::new(1.2, 0.0); // Max value is kappa
+const κ_1:   f32 = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cf32 = Complex::new(2.2, 0.0); // Max value is kappa
 const γ_dec: f32 = 1.0;
-const η:     f32 = 0.5;
+const η:     f32 = 0.999;
 const Φ:     f32 = 0.0; // c_out phase shift Phi
 const γ_φ:   f32 = 0.001;
 //const ddelta: f32 = delta_r - delta_s;
@@ -146,6 +150,7 @@ impl QubitSystem {
         let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
         let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
         let σ_minus  = Matrix::new(0.0, 0.0, 1.0, 0.0);
+        let hadamard = Matrix::new(1.0, 1.0, 1.0, -1.0);
         let identity = Operator::identity();
 
         let χσ_z = apply_and_scale_individually(χ, &σ_z);
@@ -212,7 +217,7 @@ impl QubitSystem {
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
         let c1 = (2.0 * κ).sqrt() * a;
         let c2 = γ_dec.sqrt() * &σ_minus;//sigma_minus;
-        let c3 = (γ_φ / 2.0).sqrt() * σ_z;
+        let c3 = (γ_φ / 2.0).sqrt() * &σ_z;
 
         let identity = Matrix::identity(2);
 
@@ -227,7 +232,15 @@ impl QubitSystem {
 
         println!("H:\n{H}");
 
-        let circuit = QuantumCircuit::new(&[(H, 10.0)]);
+        let omega = 1.0;
+        let hadamard_parts = apply_individually_parts(&((1.0/SQRT_2)*hadamard));
+        let H1 = H + omega * hadamard_parts[0];
+        let H2 = H + omega * hadamard_parts[1];
+
+        let circuit = QuantumCircuit::new(&[
+            (H1, 5.0/SQRT_2),
+            (H, 0.1)
+        ]);
 
         (
             Self {
