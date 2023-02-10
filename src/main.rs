@@ -16,72 +16,66 @@ mod hamiltonian;
 use hamiltonian::*;
 
 use rand_distr::StandardNormal;
-use std::{
-    io::Write,
-    simd::{self, SimdPartialOrd, ToBitMask}, f32::consts::SQRT_2,
-};
+use std::io::Write;
 
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 mod pipewriter;
-use pipewriter::*;
+// use pipewriter::*;
 
-#[allow(non_camel_case_types)]
-type cf32 = Complex;
-
-const ONE:     cf32 = Complex::new(1.0, 0.0);
-const I:       cf32 = Complex::new(0.0, 1.0);
-const MINUS_I: cf32 = Complex::new(0.0, -1.0);
-const ZERO:    cf32 = Complex::new(0.0, 0.0);
+const ONE:     cfp = Complex::new(1.0, 0.0);
+const I:       cfp = Complex::new(0.0, 1.0);
+const MINUS_I: cfp = Complex::new(0.0, -1.0);
+const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const initial_probabilities: [f32; Operator::SIZE] = [
-    1.0, // 00
-    0.0, // 01
-    0.0, // 10
-    0.00  // 11
-    //0.01, // 00
-    //0.44, // 01
-    //0.54, // 10
-    //0.01  // 11
+const initial_probabilities: [fp; Operator::SIZE] = [
+    //1.0, // 00
+    //0.0, // 01
+    //0.0, // 10
+    //0.00  // 11
+    0.01, // 00
+    0.44, // 01
+    0.54, // 10
+    0.01  // 11
 ];
 
 // Simulation constants
-const Δt: f32 = 0.02;
+const Δt: fp = 0.01;
 const STEP_COUNT: u32 = 1000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 500;
+const SIMULATIONS_PER_THREAD: u32 = 50;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
-const κ:     f32 = 1.2;
-const κ_1:   f32 = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cf32 = Complex::new(2.2, 0.0); // Max value is kappa
-const γ_dec: f32 = 1.0;
-const η:     f32 = 0.999;
-const Φ:     f32 = 0.0; // c_out phase shift Phi
-const γ_φ:   f32 = 0.001;
-//const ddelta: f32 = delta_r - delta_s;
-const χ_0:   f32 = 0.6;
-const g:     f32 = 125.6637061435917;
-const ω_r:   f32 = 28368.582 / 1000.0;
-const ω_s_0: f32 = 2049.6365 / 1000.0;
-const Δ_s_0: f32 = 26318.94506957162 / 1000.0;
+const κ:     fp = 1.2;
+const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(5.9, 0.0); // Max value is kappa
+const γ_dec: fp = 1.0;
+const η:     fp = 0.25;
+const Φ:     fp = 0.0; // c_out phase shift Phi
+const γ_φ:   fp = 0.001;
+//const ddelta: fp = delta_r - delta_s;
+const χ_0:   fp = 0.6;
+const g:     fp = 125.6637061435917 / 1.0;
+const ω_r:   fp = 28368.582 / 1000.0;
+const ω_s_0: fp = 2049.6365 / 1000.0;
+const Δ_s_0: fp = 26318.94506957162 / 1000.0;
 
-const ω_b:       f32 = 0.1;
-const Δ_s:  [f32; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-const Δ_b:  [f32; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
-const Δ_br:      f32 = ω_r; // ω_b - ω_r
-const Δ_r:       f32 = ω_r;
-const χ:    [f32; 2] = [χ_0; 2];
+const ω_b:       fp = 0.1;
+const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
+const Δ_b:  [fp; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
+const Δ_br:      fp = ω_r; // ω_b - ω_r
+const Δ_r:       fp = ω_r;
+const χ:    [fp; 2] = [χ_0; 2];
 
 #[derive(Clone)]
 struct QubitSystem {
     ρ: Operator,
-    Y: cf32,
-    //t: f32
-    sqrt_η: f32,
+    Y: cfp,
+    //t: fp
+    sqrt_η: fp,
     c_out_phased: Operator,
     dχρ: Operator,
     rng: ThreadRng,
@@ -113,11 +107,9 @@ macro_rules! alloc_zero {
     };
 }
 
-
 fn anti_tensor_commutator(lhs: &Matrix, rhs: &Matrix) -> Matrix {
     lhs.kronecker(rhs) + rhs.kronecker(lhs)
 }
-
 
 fn apply_individually_parts(op: &Matrix) -> [Operator; Operator::QUBIT_COUNT] {
     let identity = Matrix::identity(2);
@@ -157,10 +149,10 @@ impl QubitSystem {
         //let a = (2.0*κ_1).sqrt() * β / (Δ_r*identity + I*χσ_z + κ*identity);
 
         let a = Operator::from_fn(|r, c| {
-            (r==c) as u32 as f32
+            (r==c) as u32 as fp
                 * (2.*κ_1).sqrt() * β
                 / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (n, χ_n)| {
-                    acc - (((c>>n)&1) as i32 * 2 - 1) as f32 * χ_n // TODO: Check this
+                    acc - (((c>>n)&1) as i32 * 2 - 1) as fp * χ_n // TODO: Check this
             }))
         });
 
@@ -250,7 +242,7 @@ impl QubitSystem {
                 c_out_phased,
                 dχρ,
                 rng: thread_rng(),
-                measurement: Operator::from_fn(|r, c| ONE * (r * c) as f32),
+                measurement: Operator::from_fn(|r, c| ONE * (r * c) as fp),
                 c1,
                 c2,
                 c3,
@@ -260,7 +252,7 @@ impl QubitSystem {
         )
     }
 
-    fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cf32*/) {
+    fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
         let cop = &self.c_out_phased;
         let copa = self.c_out_phased.adjoint();
         let cop_rho = cop * ρ;
@@ -279,7 +271,7 @@ impl QubitSystem {
                 //////+ self.lindblad(&self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
                 .lindblad(ρ, cop) // c_out
-                .add(
+                .add( // (h_cal*dW_0 + h_cal_neg*dW_1)*sqrt(η)*ρ
                     &(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
                             * ρ)
                 ),
@@ -293,14 +285,19 @@ impl QubitSystem {
         let (k1, dY1) = self.dv(H, &(self.ρ + 0.5 * Δt * k0));
         let (k2, dY2) = self.dv(H, &(self.ρ + 0.5 * Δt * k1));
         let (k3, dY3) = self.dv(H, &(self.ρ + Δt * k2));
-        let t3 = Δt / 3.0;
-        self.ρ += t3 * (k1 + k2 + 0.5 * (k0 + k3));
+        self.ρ += (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 
     fn euler(&mut self, H: &Operator) {
         self.ρ += self.dv(H, &self.ρ).0 * Δt;
     }
+
+    // fn millstein(&mut self, H: &Operator) {
+    //     self.ρ += self.dv(H, &self.ρ).0 * Δt
+    // }
+
+
 
 }
 
@@ -361,6 +358,10 @@ let γ_φ = {γ_φ};
         let (initial_system, circuit) = QubitSystem::new();
 
         let one_over_sqrtdt = Real::splat(1.0 / Δt.sqrt());
+        //let one_over_sqrtdt = Real::splat(1.0 / Δt);
+        //let one_over_sqrtdt = Real::splat(Δt.sqrt());
+        //let one_over_sqrtdt = Real::splat(1.0);
+        println!("one_over_sqrtdt: {:?}", one_over_sqrtdt);
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -404,9 +405,9 @@ let γ_φ = {γ_φ};
                 {
                     for lane in 0..Real::LANES {
                         system.dW[0][lane] =
-                            system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                            system.rng.sample::<fp, StandardNormal>(StandardNormal);
                         system.dW[1][lane] =
-                            system.rng.sample::<f32, StandardNormal>(StandardNormal);
+                            system.rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
                     let c = one_over_sqrtdt;
                     system.dW[0] *= c;
@@ -415,7 +416,7 @@ let γ_φ = {γ_φ};
 
                 // Do the runge-kutta4 step.
                 system.runge_kutta(H);
-                // system.euler();
+                // system.euler(H);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
@@ -424,7 +425,7 @@ let γ_φ = {γ_φ};
                 system.ρ = system.ρ / system.ρ.trace();
 
                 // Compute current.
-                const SQRT2_OVER_DT: Real = Real::from_array([std::f32::consts::SQRT_2/Δt; Real::LANES]);
+                const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
                 J += Complex {
                     real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[0],
                     imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[1]
@@ -454,7 +455,7 @@ let γ_φ = {γ_φ};
         );
 
         for s in local.trajectory_sum.iter_mut() {
-            s.divide(SIMULATIONS_PER_THREAD as f32);
+            s.divide(SIMULATIONS_PER_THREAD as fp);
         }
 
         local
@@ -485,14 +486,14 @@ let γ_φ = {γ_φ};
     }
 
     for s in trajectory_average.iter_mut() {
-        s.divide(THREAD_COUNT as f32);
+        s.divide(THREAD_COUNT as fp);
         data_file.write_all(&s.average().to_le_bytes()).unwrap();
     }
 
     // TODO: actual time
     // TODO: fix magic number (simcount)
     for i in 0..=STEP_COUNT {
-        let t = i as f32 * Δt;
+        let t = i as fp * Δt;
         data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
@@ -505,7 +506,7 @@ let γ_φ = {γ_φ};
     }
 }
 
-fn bloch_vector(rho: &Operator) -> [f32; 3] {
+fn bloch_vector(rho: &Operator) -> [fp; 3] {
     const OFFSET: usize = 0;
     [
         rho[(OFFSET, 1 + OFFSET)].real()[0] + rho[(1 + OFFSET, 0 + OFFSET)].real()[0],
@@ -523,7 +524,7 @@ fn main() {
 
     println!(
         "Simulations took {elapsed} ms ({} sim/s, {} steps/s)",
-        (1000*SIMULATION_COUNT*Real::LANES as u32) as f32 / elapsed as f32,
+        (1000*SIMULATION_COUNT*Real::LANES as u32) as fp / elapsed as fp,
         (1000*SIMULATION_COUNT as u64 * STEP_COUNT as u64 * Real::LANES as u64) as u128 / elapsed
     );
 

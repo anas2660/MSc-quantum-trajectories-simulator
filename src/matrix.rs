@@ -12,7 +12,7 @@ pub struct Matrix {
 }
 
 impl Matrix {
-    pub fn new(v00: f32, v01: f32, v10: f32, v11: f32) -> Matrix {
+    pub fn new(v00: fp, v01: fp, v10: fp, v11: fp) -> Matrix {
         Matrix {
             v: [
                 [Complex::new(v00, 0.0), Complex::new(v01, 0.0)].to_vec(),
@@ -33,7 +33,7 @@ impl Matrix {
         //let mut result = Matrix::zeros(size);
         Matrix {
             v: (0..size)
-                .map(|y| (0..size).map(|x| C!(((x == y) as u32) as f32)).collect())
+                .map(|y| (0..size).map(|x| C!(((x == y) as u32) as fp)).collect())
                 .collect(),
         }
     }
@@ -47,7 +47,7 @@ impl Matrix {
         result
     }
 
-    pub fn vector(elements: &[f32]) -> Self {
+    pub fn vector(elements: &[fp]) -> Self {
         let size = elements.len();
         let mut result = Matrix::zeroed(size, 1);
         for i in 0..size {
@@ -186,10 +186,10 @@ impl Mul<Matrix> for &Matrix {
     }
 }
 
-impl Mul<f32> for &Matrix {
+impl Mul<fp> for &Matrix {
     type Output = Matrix;
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         self * &C!(rhs)
     }
 }
@@ -227,15 +227,15 @@ impl Mul<Matrix> for Complex {
         &rhs * &self
     }
 }
-impl Mul<f32> for Matrix {
+impl Mul<fp> for Matrix {
     type Output = Matrix;
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         &self * rhs
     }
 }
 
-impl Mul<Matrix> for f32 {
+impl Mul<Matrix> for fp {
     type Output = Matrix;
     #[inline]
     fn mul(self, rhs: Matrix) -> Self::Output {
@@ -243,7 +243,7 @@ impl Mul<Matrix> for f32 {
     }
 }
 
-impl Mul<&Matrix> for f32 {
+impl Mul<&Matrix> for fp {
     type Output = Matrix;
     #[inline]
     fn mul(self, rhs: &Matrix) -> Self::Output {

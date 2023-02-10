@@ -6,6 +6,7 @@ use std::{
 
 use crate::num::*;
 
+
 #[derive(Debug, Clone, Copy)]
 pub struct Operator {
     elements: [[Complex; 4]; 4],
@@ -23,7 +24,7 @@ impl Operator {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = C!(((x == y) as u32) as f32) };
+                unsafe { (*result.as_mut_ptr()).elements[y][x] = C!(((x == y) as u32) as fp) };
             }
         }
 
@@ -216,23 +217,23 @@ impl Mul<Operator> for &Operator {
     }
 }
 
-impl Mul<f32> for &Operator {
+impl Mul<fp> for &Operator {
     type Output = Operator;
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         let to_mul = V::splat(rhs);
         self * &to_mul
     }
 }
-impl Mul<f32> for Operator {
+impl Mul<fp> for Operator {
     type Output = Operator;
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         &self * rhs
     }
 }
 
-impl Mul<Operator> for f32 {
+impl Mul<Operator> for fp {
     type Output = Operator;
     #[inline]
     fn mul(self, rhs: Operator) -> Self::Output {
@@ -240,7 +241,7 @@ impl Mul<Operator> for f32 {
     }
 }
 
-impl Mul<&Operator> for f32 {
+impl Mul<&Operator> for fp {
     type Output = Operator;
     #[inline]
     fn mul(self, rhs: &Operator) -> Self::Output {
@@ -402,7 +403,7 @@ impl Div<Complex> for Operator {
 //         let mut result = Operator::zero();
 //
 //         for n in 0..6 {
-//             let factor = -((n&1) as f32);
+//             let factor = -((n&1) as fp);
 //             result += (rhs - &identity).pow(n).scale(factor);
 //         }
 //
@@ -429,7 +430,7 @@ pub struct StateProbabilitiesSimd {
 
 #[derive(Clone,Copy)]
 pub struct StateProbabilities {
-    pub v: [f32; Operator::SIZE]
+    pub v: [fp; Operator::SIZE]
 }
 
 
@@ -448,16 +449,16 @@ impl StateProbabilitiesSimd {
     }
 
     #[inline]
-    pub fn divide(&mut self, rhs: f32) {
+    pub fn divide(&mut self, rhs: fp) {
         for s in self.v.iter_mut() {
             *s /= Real::splat(rhs);
         }
     }
 
     pub fn average(&self) -> StateProbabilities {
-        let mut result = StateProbabilities { v: [0.0f32; Operator::SIZE]};
+        let mut result = StateProbabilities { v: [0.0; Operator::SIZE]};
         for (out, v) in result.v.iter_mut().zip(self.v.iter()) {
-            *out = v.as_array().iter().sum::<f32>() / Real::LANES as f32;
+            *out = v.as_array().iter().sum::<fp>() / Real::LANES as fp;
         }
         result
     }
@@ -466,9 +467,9 @@ impl StateProbabilitiesSimd {
 }
 
 impl StateProbabilities {
-    pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<f32>() * Operator::SIZE] {
-        let mut buf = [0u8; std::mem::size_of::<f32>() * Operator::SIZE];
-        for (vb, v) in buf.chunks_mut(std::mem::size_of::<f32>()).zip(self.v.iter()) {
+    pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<fp>() * Operator::SIZE] {
+        let mut buf = [0u8; std::mem::size_of::<fp>() * Operator::SIZE];
+        for (vb, v) in buf.chunks_mut(std::mem::size_of::<fp>()).zip(self.v.iter()) {
             vb.copy_from_slice(&v.to_le_bytes());
         }
         buf

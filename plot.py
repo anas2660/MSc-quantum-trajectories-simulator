@@ -7,8 +7,14 @@ filename = files[-1]
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+float_type = np.float64
+
+
+
+
 data_buffer = open(filename, "rb").read()
-data = np.frombuffer(data_buffer, np.float32, offset=12)
+data = np.frombuffer(data_buffer, float_type, offset=12)
 metadata = np.frombuffer(data_buffer, np.uint32, count=3)
 
 simulation_count = metadata[0]
@@ -68,7 +74,7 @@ from matplotlib import pyplot as plt, cm
 
 fig, ax = plt.subplots()
 print(np.max(hist_data))
-im = ax.imshow(np.swapaxes(np.minimum(hist_data + np.min(hist_data[hist_data>0]), 5000), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
+im = ax.imshow(np.swapaxes(np.minimum(hist_data + np.min(hist_data[hist_data>0]), 10000000), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
                cmap=cm.turbo,
                norm=colors.LogNorm()
                )
@@ -96,7 +102,7 @@ filename = files[-1]
 current_data_buffer = open(filename, "rb").read()
 current_metadata = np.frombuffer(current_data_buffer, np.uint32, count=1)
 current_simulations = current_metadata[0]
-current_data = np.reshape(np.frombuffer(current_data_buffer, np.float32, offset=4), (current_simulations, 2))
+current_data = np.reshape(np.frombuffer(current_data_buffer, float_type, offset=4), (current_simulations, 2))
 
 plt.plot(current_data[:,0], current_data[:,1], 'o')
 

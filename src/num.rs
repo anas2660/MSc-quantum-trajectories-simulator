@@ -6,11 +6,20 @@ use std::{
     iter::Sum,
     mem::MaybeUninit,
     ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
-    simd::f32x8,
 };
 
-pub type V = f32x8;
+pub type V = std::simd::f64x4;
+pub type UV = std::simd::u64x4;
 pub type Real = V;
+#[allow(non_camel_case_types)]
+pub type cfp = Complex;
+#[allow(non_camel_case_types)]
+pub type fp = f64;
+#[allow(non_camel_case_types)]
+pub type Uint = u64;
+
+pub const SQRT_2:        fp = std::f64::consts::SQRT_2;
+//pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Complex {
@@ -37,9 +46,9 @@ macro_rules! C {
 pub(crate) use C;
 
 impl Complex {
-    //    fn from_real(f32) -> Complex {}
+    //    fn from_real(fp) -> Complex {}
     #[inline]
-    pub const fn new(re: f32, im: f32) -> Self {
+    pub const fn new(re: fp, im: fp) -> Self {
         Complex {
             real: V::from_array([re; V::LANES]),
             imag: V::from_array([im; V::LANES]),
@@ -81,7 +90,7 @@ impl Complex {
     }
 
     #[inline]
-    pub fn first(&self) -> (f32, f32) {
+    pub fn first(&self) -> (fp, fp) {
         (self.real.as_array()[0], self.imag.as_array()[0])
     }
 
@@ -121,9 +130,9 @@ impl Display for Complex {
     }
 }
 
-impl From<f32> for Complex {
+impl From<fp> for Complex {
     #[inline]
-    fn from(value: f32) -> Self {
+    fn from(value: fp) -> Self {
         //Complex {
         //        real: Real::splat(value),
         //    imag: Real::splat(0.0),
@@ -165,11 +174,11 @@ impl Sub<&Complex> for &Complex {
     }
 }
 
-impl Sub<f32> for &Complex {
+impl Sub<fp> for &Complex {
     type Output = Complex;
 
     #[inline]
-    fn sub(self, rhs: f32) -> Self::Output {
+    fn sub(self, rhs: fp) -> Self::Output {
         Complex {
             real: self.real - V::splat(rhs),
             imag: self.imag,
@@ -186,11 +195,11 @@ impl Sub<Complex> for Complex {
     }
 }
 
-impl Add<f32> for &Complex {
+impl Add<fp> for &Complex {
     type Output = Complex;
 
     #[inline]
-    fn add(self, rhs: f32) -> Self::Output {
+    fn add(self, rhs: fp) -> Self::Output {
         Complex {
             real: self.real + V::splat(rhs),
             imag: self.imag,
@@ -198,7 +207,7 @@ impl Add<f32> for &Complex {
     }
 }
 
-impl Add<Complex> for f32 {
+impl Add<Complex> for fp {
     type Output = Complex;
 
     #[inline]
@@ -207,7 +216,7 @@ impl Add<Complex> for f32 {
     }
 }
 
-impl Sub<&Complex> for f32 {
+impl Sub<&Complex> for fp {
     type Output = Complex;
 
     #[inline]
@@ -219,7 +228,7 @@ impl Sub<&Complex> for f32 {
     }
 }
 
-impl Sub<Complex> for f32 {
+impl Sub<Complex> for fp {
     type Output = Complex;
 
     #[inline]
@@ -250,7 +259,7 @@ impl Div<Complex> for Complex {
     }
 }
 
-impl Div<&Complex> for f32 {
+impl Div<&Complex> for fp {
     type Output = Complex;
 
     #[inline]
@@ -263,7 +272,7 @@ impl Div<&Complex> for f32 {
     }
 }
 
-impl Div<Complex> for f32 {
+impl Div<Complex> for fp {
     type Output = Complex;
     #[inline]
     fn div(self, rhs: Complex) -> Self::Output {
@@ -276,12 +285,13 @@ impl Mul<&Complex> for &Complex {
 
     #[inline]
     fn mul(self, rhs: &Complex) -> Self::Output {
-        //Complex {
-        //    real: self.real * rhs.real - self.imag * rhs.imag,
-        //    imag: self.real * rhs.imag + self.imag * rhs.real,
-        //}
+        Complex {
+            real: self.real * rhs.real - self.imag * rhs.imag,
+            imag: self.real * rhs.imag + self.imag * rhs.real,
+        }
 
-        // FMA implementation
+        /*
+        // FMA implementation (f32x8 only)
         unsafe {
             let mut real: __m256;
             let mut imag: __m256;
@@ -302,6 +312,7 @@ impl Mul<&Complex> for &Complex {
 
             Complex { real: real.into(), imag: imag.into() }
         }
+        */
     }
 }
 
@@ -317,25 +328,25 @@ impl Mul<&V> for &Complex {
     }
 }
 
-impl Mul<f32> for &Complex {
+impl Mul<fp> for &Complex {
     type Output = Complex;
 
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         self * &V::splat(rhs)
     }
 }
 
-impl Mul<f32> for Complex {
+impl Mul<fp> for Complex {
     type Output = Complex;
 
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: fp) -> Self::Output {
         &self * &V::splat(rhs)
     }
 }
 
-impl Mul<Complex> for f32 {
+impl Mul<Complex> for fp {
     type Output = Complex;
 
     #[inline]
@@ -344,7 +355,7 @@ impl Mul<Complex> for f32 {
     }
 }
 
-impl Mul<&Complex> for f32 {
+impl Mul<&Complex> for fp {
     type Output = Complex;
 
     #[inline]

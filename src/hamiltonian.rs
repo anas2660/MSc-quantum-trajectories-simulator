@@ -23,7 +23,7 @@ pub struct QuantumCircuitState<'a> {
 impl QuantumCircuit {
 
     // Using gate bases
-    // pub fn new(gate_descriptions: &[(&[GateBase], f32)]) -> QuantumCircuit {
+    // pub fn new(gate_descriptions: &[(&[GateBase], fp)]) -> QuantumCircuit {
     //     let mut ops: Vec<QuantumGate> = Vec::new();
     //     for (bases, time) in gate_descriptions {
     //         let mut gate = QuantumGate { bases: [None; 2], time: *time };
@@ -36,7 +36,7 @@ impl QuantumCircuit {
     //     QuantumCircuit { operations: ops }
     // }
 
-    pub fn new(gates: &[(Operator, f32)]) -> QuantumCircuit {
+    pub fn new(gates: &[(Operator, fp)]) -> QuantumCircuit {
         let mut ops: Vec<QuantumGate> = Vec::new();
 
         let mut circuit_time = 0.0;
@@ -46,7 +46,7 @@ impl QuantumCircuit {
         }
 
         // NOTE: Maybe debug_assert? or disable to allow partial circuit simulations
-        assert!(circuit_time < crate::STEP_COUNT as f32 * crate::Δt, "Total simulation time is less than circuit time! Increase the simulation time or disable this assert.");
+        assert!(circuit_time < crate::STEP_COUNT as fp * crate::Δt, "Total simulation time is less than circuit time! Increase the simulation time or disable this assert.");
 
         QuantumCircuit { operations: ops }
     }
