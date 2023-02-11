@@ -113,15 +113,15 @@ fn anti_tensor_commutator(lhs: &Matrix, rhs: &Matrix) -> Matrix {
 
 fn apply_individually_parts(op: &Matrix) -> [Operator; Operator::QUBIT_COUNT] {
     let identity = Matrix::identity(2);
-    let parts: [Operator; Operator::QUBIT_COUNT] = (0..Operator::QUBIT_COUNT).map(|i| {
-        let mut tmp = if i == 0 { op.clone() } else { identity.clone() };
 
-        for j in 1..Operator::QUBIT_COUNT {
-            tmp = if i == j { tmp.kronecker(op) } else { tmp.kronecker(&identity) }
-        }
-        tmp.to_operator()
-    }).collect::<Vec<_>>().try_into().unwrap(); // fix this
-    parts
+    // Create [[M,I], [I,M]].
+    let mut parts = [[&identity; Operator::QUBIT_COUNT]; Operator::QUBIT_COUNT];
+    (0..Operator::QUBIT_COUNT).for_each(|i| parts[i][i] = op );
+
+    // Combine into [M ⊗ I, I ⊗ M].
+    parts.map(|mp| {
+        mp.iter().skip(1).fold(mp[0].clone(), |acc, m| acc.kronecker(m)).to_operator()
+    })
 }
 
 fn apply_individually(op: &Matrix) -> Operator {
