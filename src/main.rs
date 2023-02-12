@@ -41,8 +41,8 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.01;
-const STEP_COUNT: u32 = 1000;
+const Δt: fp = 0.00025;
+const STEP_COUNT: u32 = 10000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
 const SIMULATIONS_PER_THREAD: u32 = 50;
@@ -50,18 +50,18 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
-const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(5.9, 0.0); // Max value is kappa
+const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(1000000.0, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 0.25;
+const η:     fp = 250.50;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
 const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 / 1000.0;
-const ω_s_0: fp = 2049.6365 / 1000.0;
-const Δ_s_0: fp = 26318.94506957162 / 1000.0;
+const ω_r:   fp = 28368.582 / 1.0;
+const ω_s_0: fp = 2049.6365 / 1.0;
+const Δ_s_0: fp = 26318.94506957162 / 1.0;
 
 const ω_b:       fp = 0.1;
 const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
@@ -83,7 +83,7 @@ struct QubitSystem {
     c1: Operator,
     c2: Operator,
     c3: [Operator; 2],
-    dW: [Real; 2],
+    dZ: Complex,
 }
 
 #[inline]
@@ -178,7 +178,7 @@ impl QubitSystem {
         // Hamiltonian
         let factors: [Operator; Operator::QUBIT_COUNT] = Δ_b.zip(χ).map(|(Δ_bs, χ_s)| {
             0.5*Δ_bs*identity + χ_s*N
-        }).try_into().unwrap();
+        });
 
         let sum_σ_minus = apply_individually(&σ_minus);
         let term3 = apply_individually_parts(&σ_plus).iter().zip(χ).fold(Operator::zero(), |sum, (σ_ps, χ_s)| {
@@ -230,7 +230,7 @@ impl QubitSystem {
         let H2 = H + omega * hadamard_parts[1];
 
         let circuit = QuantumCircuit::new(&[
-            (H1, 5.0/SQRT_2),
+            (H1, 0.1/SQRT_2),
             (H, 0.1)
         ]);
 
@@ -246,7 +246,7 @@ impl QubitSystem {
                 c1,
                 c2,
                 c3,
-                dW: [Real::splat(0.0); 2],
+                dZ: Complex::new(0.0, 0.0),
             },
             circuit
         )
@@ -254,26 +254,32 @@ impl QubitSystem {
 
     fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
         let cop = &self.c_out_phased;
-        let copa = self.c_out_phased.adjoint();
-        let cop_rho = cop * ρ;
-        let rho_copa = ρ * copa;
-        let last_term = (cop_rho + copa * ρ).trace() * ρ;
+        //let copa = self.c_out_phased.adjoint();
+        //let cop_rho = cop * ρ;
+        //let rho_copa = ρ * copa;
+        //let last_term = (cop_rho + copa * ρ).trace() * ρ;
 
-        let mut h_cal     = cop_rho + rho_copa - last_term;
-        let mut h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
+        //let mut h_cal     = cop_rho + rho_copa - last_term;
+        //let mut h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
+
+        let r = self.dZ.conjugate()*cop;
+        let term = r*ρ + ρ*r.dagger();
+        let Hcal = term - term.trace()*ρ;
 
         // let a = self.measurement;
         (
             *commutator(H, ρ)
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
+                // NOTE: Are these not missing a ρ factor?
                 .lindblad(ρ, &self.c1) // Photon field transmission/losses
                 //////+ self.lindblad(&self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
                 .lindblad(ρ, cop) // c_out
                 .add( // (h_cal*dW_0 + h_cal_neg*dW_1)*sqrt(η)*ρ
-                    &(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
-                            * ρ)
+                    //&(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
+                    //        * ρ)
+                    &(Hcal*ρ)
                 ),
             (),
         )
@@ -357,11 +363,13 @@ let γ_φ = {γ_φ};
         // Create initial system.
         let (initial_system, circuit) = QubitSystem::new();
 
-        let one_over_sqrtdt = Real::splat(1.0 / Δt.sqrt());
+        // 1/sqrt(2)  is from definition of dZ. TODO: Check where η goes.
+        // 1/sqrt(dt) is to make the variance σ = dt
+        let one_over_sqrt2dt = Real::splat(1.0 / (Δt*2.0).sqrt());
         //let one_over_sqrtdt = Real::splat(1.0 / Δt);
         //let one_over_sqrtdt = Real::splat(Δt.sqrt());
         //let one_over_sqrtdt = Real::splat(1.0);
-        println!("one_over_sqrtdt: {:?}", one_over_sqrtdt);
+        println!("one_over_sqrtdt: {:?}", one_over_sqrt2dt);
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -404,14 +412,14 @@ let γ_φ = {γ_φ};
                 // Sample on the normal distribution.
                 {
                     for lane in 0..Real::LANES {
-                        system.dW[0][lane] =
+                        system.dZ.real[lane] =
                             system.rng.sample::<fp, StandardNormal>(StandardNormal);
-                        system.dW[1][lane] =
+                        system.dZ.imag[lane] =
                             system.rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
-                    let c = one_over_sqrtdt;
-                    system.dW[0] *= c;
-                    system.dW[1] *= c;
+
+                    let c = one_over_sqrt2dt;
+                    system.dZ *= &c;
                 }
 
                 // Do the runge-kutta4 step.
@@ -425,11 +433,19 @@ let γ_φ = {γ_φ};
                 system.ρ = system.ρ / system.ρ.trace();
 
                 // Compute current.
+                // Original dW implementation reference
+                // const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
+                // J += Complex {
+                //     real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[0],
+                //     imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[1]
+                // };
+                // FIXME: Fix this, missing factor i think.
                 const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
                 J += Complex {
-                    real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[0],
-                    imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[1]
+                    real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
+                    imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.imag
                 };
+
 
                 // Calculate integrated current
                 //let zeta = system.Y * (1.0 / t.sqrt());
