@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import glob
 files = glob.glob("results/*trajectories*")
 files.sort()
