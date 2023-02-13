@@ -41,11 +41,11 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.00025;
-const STEP_COUNT: u32 = 10000;
+const Δt: fp = 0.00001;
+const STEP_COUNT: u32 = 2000;
 const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 50;
+const HIST_BIN_COUNT: usize = 64;
+const SIMULATIONS_PER_THREAD: u32 = 1;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
@@ -53,11 +53,11 @@ const κ:     fp = 1.2;
 const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
 const β:    cfp = Complex::new(1000000.0, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 250.50;
+const η:     fp = 99999999.0 ; // 9.9%?
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 0.6;
+const χ_0:   fp = 0.6*1.0;
 const g:     fp = 125.6637061435917 / 1.0;
 const ω_r:   fp = 28368.582 / 1.0;
 const ω_s_0: fp = 2049.6365 / 1.0;
@@ -230,8 +230,8 @@ impl QubitSystem {
         let H2 = H + omega * hadamard_parts[1];
 
         let circuit = QuantumCircuit::new(&[
-            (H1, 0.1/SQRT_2),
-            (H, 0.1)
+            (H1, 0.01/SQRT_2),
+            (H, 0.0001)
         ]);
 
         (
@@ -288,9 +288,9 @@ impl QubitSystem {
 
     fn runge_kutta(&mut self, H: &Operator) {
         let (k0, dY0) = self.dv(H, &self.ρ);
-        let (k1, dY1) = self.dv(H, &(self.ρ + 0.5 * Δt * k0));
-        let (k2, dY2) = self.dv(H, &(self.ρ + 0.5 * Δt * k1));
-        let (k3, dY3) = self.dv(H, &(self.ρ + Δt * k2));
+        let (k1, dY1) = self.dv(H, (self.ρ + 0.5 * Δt * k0).normalize());
+        let (k2, dY2) = self.dv(H, (self.ρ + 0.5 * Δt * k1).normalize());
+        let (k3, dY3) = self.dv(H, (self.ρ + Δt * k2).normalize());
         self.ρ += (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3));
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
@@ -365,11 +365,11 @@ let γ_φ = {γ_φ};
 
         // 1/sqrt(2)  is from definition of dZ. TODO: Check where η goes.
         // 1/sqrt(dt) is to make the variance σ = dt
-        let one_over_sqrt2dt = Real::splat(1.0 / (Δt*2.0).sqrt());
+        let sqrtη_over_sqrtdt = Real::splat(η.sqrt() / Δt.sqrt());
         //let one_over_sqrtdt = Real::splat(1.0 / Δt);
         //let one_over_sqrtdt = Real::splat(Δt.sqrt());
         //let one_over_sqrtdt = Real::splat(1.0);
-        println!("one_over_sqrtdt: {:?}", one_over_sqrt2dt);
+        println!("sqrtη_over_sqrtdt: {:?}", sqrtη_over_sqrtdt);
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -418,8 +418,7 @@ let γ_φ = {γ_φ};
                             system.rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
 
-                    let c = one_over_sqrt2dt;
-                    system.dZ *= &c;
+                    system.dZ *= &sqrtη_over_sqrtdt;
                 }
 
                 // Do the runge-kutta4 step.
@@ -430,7 +429,7 @@ let γ_φ = {γ_φ};
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
                 // Normalize rho.
-                system.ρ = system.ρ / system.ρ.trace();
+                system.ρ.normalize();
 
                 // Compute current.
                 // Original dW implementation reference

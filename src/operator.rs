@@ -146,6 +146,17 @@ impl Operator {
     }
 
     #[inline]
+    pub fn normalize(&mut self) -> &Self {
+        let trace = self.trace();
+        for i in 0..Operator::SIZE {
+            for j in 0..Operator::SIZE {
+                self.elements[i][j] /= &trace;
+            }
+        }
+        self
+    }
+
+    #[inline]
     pub fn get_probabilites_simd(&self) -> StateProbabilitiesSimd {
         let mut result: StateProbabilitiesSimd = unsafe { std::mem::zeroed() };
         for i in 0..Operator::SIZE {

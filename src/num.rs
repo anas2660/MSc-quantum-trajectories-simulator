@@ -1,3 +1,4 @@
+use std::ops::DivAssign;
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -395,6 +396,13 @@ impl MulAssign<&V> for Complex {
     #[inline]
     fn mul_assign(&mut self, rhs: &V) {
         *self = &(*self) * rhs;
+    }
+}
+
+impl DivAssign<&Complex> for Complex {
+    #[inline]
+    fn div_assign(&mut self, rhs: &Complex) {
+        *self = &(*self) / rhs;
     }
 }
 
