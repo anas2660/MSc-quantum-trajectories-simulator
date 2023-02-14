@@ -41,8 +41,8 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.00001;
-const STEP_COUNT: u32 = 2000;
+const Δt: fp = 0.0000001;
+const STEP_COUNT: u32 = 1000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -51,13 +51,13 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 // Physical constants
 const κ:     fp = 1.2;
 const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(1000000.0, 0.0); // Max value is kappa
+const β:    cfp = Complex::new(1000.00, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 99999999.0 ; // 9.9%?
+const η:     fp = 099999999.0 ; // 9.9%? FIXME
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 0.6*1.0;
+const χ_0:   fp = 0.6*1000000.0;
 const g:     fp = 125.6637061435917 / 1.0;
 const ω_r:   fp = 28368.582 / 1.0;
 const ω_s_0: fp = 2049.6365 / 1.0;
@@ -230,8 +230,8 @@ impl QubitSystem {
         let H2 = H + omega * hadamard_parts[1];
 
         let circuit = QuantumCircuit::new(&[
-            (H1, 0.01/SQRT_2),
-            (H, 0.0001)
+            (H1, 0.00001/SQRT_2),
+            (H, 0.000001)
         ]);
 
         (
