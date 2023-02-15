@@ -36,7 +36,8 @@ for i in np.arange(state_count):
 # plt.plot(np.sum(data, axis=1), linewidth=3)
 plt.legend()
 plt.grid()
-plt.xticks(np.arange(np.ceil(t.max())+1))
+#plt.xlim(t.max())
+#plt.xticks(np.linspace(0,t.max(), 10))
 plt.show()
 
 

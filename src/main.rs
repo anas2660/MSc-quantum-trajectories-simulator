@@ -41,8 +41,8 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.0000001;
-const STEP_COUNT: u32 = 1000;
+const Δt: fp = 0.05;
+const STEP_COUNT: u32 = 2000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -51,20 +51,20 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 // Physical constants
 const κ:     fp = 1.2;
 const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(1000.00, 0.0); // Max value is kappa
+const β:    cfp = Complex::new(1.20, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 099999999.0 ; // 9.9%? FIXME
+const η:     fp = 0.5 ; // 9.9%? FIXME
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 0.6*1000000.0;
-const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 / 1.0;
-const ω_s_0: fp = 2049.6365 / 1.0;
-const Δ_s_0: fp = 26318.94506957162 / 1.0;
+const χ_0:   fp = 0.6;
+//const g:     fp = 125.6637061435917 / 1.0;
+const ω_r:   fp = 28368.582 - 2000.0;
+const ω_s_0: fp = 2049.6365 - 2000.0;
+//const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
-const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
+//const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
 const Δ_b:  [fp; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
 const Δ_br:      fp = ω_r; // ω_b - ω_r
 const Δ_r:       fp = ω_r;
@@ -146,7 +146,6 @@ impl QubitSystem {
         let identity = Operator::identity();
 
         let χσ_z = apply_and_scale_individually(χ, &σ_z);
-        //let a = (2.0*κ_1).sqrt() * β / (Δ_r*identity + I*χσ_z + κ*identity);
 
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
@@ -157,23 +156,6 @@ impl QubitSystem {
         });
 
         let N = a.dagger() * a;
-
-        /////let hamiltonian =
-        /////    //+ g * (a * sigma_plus + a.dagger() * sigma_minus)
-        /////    //////+ chi*(&sigma_z + &identity)
-        /////    //+ omega * (ket(&one)*bra(&zero) + ket(&zero)*bra(&one)) // ω(|1X0| + |0X1|)
-        /////    ;
-
-        // REFERENCE
-        // let sigma_z_4x4 = apply_individually(&sigma_z);
-        // let hamiltonian =
-        //     //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
-        //     0.5 * delta_s[0] * sigma_z_4x4
-        //     + I * (2.0 * kappa_1).sqrt() * (beta * a.dagger() - beta.conjugate() * a) // Detuning
-        //     + delta_r * N
-        //     + chi[0] * N * sigma_z_4x4;
-        //     //0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
-        //(hamiltonian.kronecker(&identity) + identity.kronecker(&hamiltonian)).to_operator()
 
         // Hamiltonian
         let factors: [Operator; Operator::QUBIT_COUNT] = Δ_b.zip(χ).map(|(Δ_bs, χ_s)| {
@@ -230,7 +212,7 @@ impl QubitSystem {
         let H2 = H + omega * hadamard_parts[1];
 
         let circuit = QuantumCircuit::new(&[
-            (H1, 0.00001/SQRT_2),
+            //(H1, 0.000001/SQRT_2),
             (H, 0.000001)
         ]);
 
@@ -254,14 +236,6 @@ impl QubitSystem {
 
     fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
         let cop = &self.c_out_phased;
-        //let copa = self.c_out_phased.adjoint();
-        //let cop_rho = cop * ρ;
-        //let rho_copa = ρ * copa;
-        //let last_term = (cop_rho + copa * ρ).trace() * ρ;
-
-        //let mut h_cal     = cop_rho + rho_copa - last_term;
-        //let mut h_cal_neg = MINUS_I * cop_rho + I * rho_copa - last_term;
-
         let r = self.dZ.conjugate()*cop;
         let term = r*ρ + ρ*r.dagger();
         let Hcal = term - term.trace()*ρ;
@@ -276,11 +250,8 @@ impl QubitSystem {
                 //////+ self.lindblad(&self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
                 .lindblad(ρ, cop) // c_out
-                .add( // (h_cal*dW_0 + h_cal_neg*dW_1)*sqrt(η)*ρ
-                    //&(&*(h_cal.scale(&self.dW[0]).add(h_cal_neg.scale(&self.dW[1]))).scale(self.sqrt_η)
-                    //        * ρ)
-                    &(Hcal*ρ)
-                ),
+                .add(&(Hcal*ρ))
+                ,
             (),
         )
         // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
@@ -304,7 +275,6 @@ impl QubitSystem {
     // }
 
 
-
 }
 
 fn simulate() {
@@ -325,7 +295,6 @@ fn simulate() {
             format!(
 "let β = {β};
 let Δ_r = {Δ_r};
-let g = {g};
 let κ = {κ};
 let κ_1 = {κ_1};
 let η = {η};
@@ -363,13 +332,10 @@ let γ_φ = {γ_φ};
         // Create initial system.
         let (initial_system, circuit) = QubitSystem::new();
 
-        // 1/sqrt(2)  is from definition of dZ. TODO: Check where η goes.
+        // sqrt(η) is from the definition of dZ.
         // 1/sqrt(dt) is to make the variance σ = dt
         let sqrtη_over_sqrtdt = Real::splat(η.sqrt() / Δt.sqrt());
-        //let one_over_sqrtdt = Real::splat(1.0 / Δt);
-        //let one_over_sqrtdt = Real::splat(Δt.sqrt());
-        //let one_over_sqrtdt = Real::splat(1.0);
-        println!("sqrtη_over_sqrtdt: {:?}", sqrtη_over_sqrtdt);
+        println!("sqrtη_over_sqrtdt: {sqrtη_over_sqrtdt:?}");
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -423,7 +389,7 @@ let γ_φ = {γ_φ};
 
                 // Do the runge-kutta4 step.
                 system.runge_kutta(H);
-                // system.euler(H);
+                //system.euler(H);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
