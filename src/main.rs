@@ -41,8 +41,8 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.05;
-const STEP_COUNT: u32 = 2000;
+const Δt: fp = 0.025;
+const STEP_COUNT: u32 = 20000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -51,16 +51,16 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 // Physical constants
 const κ:     fp = 1.2;
 const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(1.20, 0.0); // Max value is kappa
+const β:    cfp = Complex::new(1.000, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 0.5 ; // 9.9%? FIXME
+const η:     fp = 00.990000 ; // 9.9%? FIXME
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 - 2000.0;
-const ω_s_0: fp = 2049.6365 - 2000.0;
+const ω_r:   fp = 28368.582 - 2049.0;
+const ω_s_0: fp = 2049.6365 - 2049.0;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
@@ -234,45 +234,79 @@ impl QubitSystem {
         )
     }
 
-    fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
-        let cop = &self.c_out_phased;
-        let r = self.dZ.conjugate()*cop;
-        let term = r*ρ + ρ*r.dagger();
-        let Hcal = term - term.trace()*ρ;
-
-        // let a = self.measurement;
-        (
-            *commutator(H, ρ)
+    fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
+        *commutator(H, ρ)
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
                 // NOTE: Are these not missing a ρ factor?
                 .lindblad(ρ, &self.c1) // Photon field transmission/losses
                 //////+ self.lindblad(&self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
-                .lindblad(ρ, cop) // c_out
-                .add(&(Hcal*ρ))
-                ,
-            (),
-        )
-        // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
+                .lindblad(ρ, &self.c_out_phased) // c_out
     }
 
-    fn runge_kutta(&mut self, H: &Operator) {
-        let (k0, dY0) = self.dv(H, &self.ρ);
-        let (k1, dY1) = self.dv(H, (self.ρ + 0.5 * Δt * k0).normalize());
-        let (k2, dY2) = self.dv(H, (self.ρ + 0.5 * Δt * k1).normalize());
-        let (k3, dY3) = self.dv(H, (self.ρ + Δt * k2).normalize());
-        self.ρ += (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3));
-        //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
+    fn stochastic(&self, H: &Operator, ρ: &Operator) -> (Operator, Operator) {
+        let cop = &self.c_out_phased;
+        let r = self.dZ.conjugate()*cop;
+        let u = r*ρ + ρ*r.dagger();
+        let v = u.trace();
+        let w = r + r.dagger();
+        (
+            u - v*ρ,                         // b
+            w - w*ρ - v*Operator::identity() // b'
+        )
+    }
+
+    fn millstein(&mut self, H: &Operator) {
+        let a = self.deterministic(H, &self.ρ);
+        let (b, b_prime) = self.stochastic(H, &self.ρ);
+        let ΔW = self.dZ;
+        self.ρ += a * Δt + b + 0.5*b*b_prime*(Complex::from(1.0) - Δt/(ΔW*ΔW))
     }
 
     fn euler(&mut self, H: &Operator) {
-        self.ρ += self.dv(H, &self.ρ).0 * Δt;
+        let a = self.deterministic(H, &self.ρ);
+        let (b, b_prime) = self.stochastic(H, &self.ρ);
+        self.ρ += a * Δt + b
+            ;
     }
 
-    // fn millstein(&mut self, H: &Operator) {
-    //     self.ρ += self.dv(H, &self.ρ).0 * Δt
-    // }
+
+    //fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
+    //    let cop = &self.c_out_phased;
+    //    let r = self.dZ.conjugate()*cop;
+    //    let term = r*ρ + ρ*r.dagger();
+    //    let Hcal_ρ = term - term.trace()*ρ;
+    //
+    //    // let a = self.measurement;
+    //    (
+    //        *commutator(H, ρ)
+    //            .scale(&MINUS_I)
+    //            ////+ self.lindblad(a)
+    //            // NOTE: Are these not missing a ρ factor?
+    //            .lindblad(ρ, &self.c1) // Photon field transmission/losses
+    //            //////+ self.lindblad(&self.c2) // Decay to ground state
+    //            .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
+    //            .lindblad(ρ, cop) // c_out
+    //            .add(&Hcal_ρ)
+    //            ,
+    //        (),
+    //    )
+    //    // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
+    //}
+
+    //fn runge_kutta(&mut self, H: &Operator) {
+    //    let (k0, dY0) = self.dv(H, &self.ρ);
+    //    let (k1, dY1) = self.dv(H, (self.ρ + 0.5 * Δt * k0).normalize());
+    //    let (k2, dY2) = self.dv(H, (self.ρ + 0.5 * Δt * k1).normalize());
+    //    let (k3, dY3) = self.dv(H, (self.ρ + Δt * k2).normalize());
+    //    self.ρ += (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3));
+    //    //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
+    //}
+
+    //fn euler(&mut self, H: &Operator) {
+    //    self.ρ += self.dv(H, &self.ρ).0 * Δt;
+    //}
 
 
 }
@@ -334,8 +368,8 @@ let γ_φ = {γ_φ};
 
         // sqrt(η) is from the definition of dZ.
         // 1/sqrt(dt) is to make the variance σ = dt
-        let sqrtη_over_sqrtdt = Real::splat(η.sqrt() / Δt.sqrt());
-        println!("sqrtη_over_sqrtdt: {sqrtη_over_sqrtdt:?}");
+        let sqrtηdt = Real::splat(η.sqrt() * Δt.sqrt());
+        println!("sqrtηdt: {sqrtηdt:?}");
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
@@ -384,12 +418,13 @@ let γ_φ = {γ_φ};
                             system.rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
 
-                    system.dZ *= &sqrtη_over_sqrtdt;
+                    system.dZ *= &sqrtηdt;
                 }
 
                 // Do the runge-kutta4 step.
-                system.runge_kutta(H);
+                //system.runge_kutta(H);
                 //system.euler(H);
+                system.millstein(H);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }

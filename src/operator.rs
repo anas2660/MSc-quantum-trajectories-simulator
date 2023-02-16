@@ -15,10 +15,12 @@ pub struct Operator {
 impl Operator {
     pub const QUBIT_COUNT: usize = 2;
     pub const SIZE: usize = 1 << Operator::QUBIT_COUNT;
+    //pub const IDENTITY: Self = Operator::identity();
 
     pub fn zero() -> Self {
         unsafe { std::mem::MaybeUninit::zeroed().assume_init() }
     }
+
 
     pub fn identity() -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
