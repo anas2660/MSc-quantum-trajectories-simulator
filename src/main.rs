@@ -42,7 +42,7 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 
 // Simulation constants
 const Δt: fp = 0.025;
-const STEP_COUNT: u32 = 20000;
+const STEP_COUNT: u32 = 4000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -59,8 +59,8 @@ const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 - 2049.0;
-const ω_s_0: fp = 2049.6365 - 2049.0;
+const ω_r:   fp = 28368.582 - 2048.0;
+const ω_s_0: fp = 2049.6365 - 2048.0;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
