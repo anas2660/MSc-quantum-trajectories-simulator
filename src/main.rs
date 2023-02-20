@@ -41,8 +41,8 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.025;
-const STEP_COUNT: u32 = 4000;
+const Δt: fp = 0.0002;
+const STEP_COUNT: u32 = 5000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -50,17 +50,17 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
-const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(1.000, 0.0); // Max value is kappa
+const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(3.00, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 00.990000 ; // 9.9%? FIXME
+const η:     fp = 05.000000;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 0.6;
+const χ_0:   fp = 6.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 - 2048.0;
-const ω_s_0: fp = 2049.6365 - 2048.0;
+const ω_r:   fp = 28368.582 - 2042.0;
+const ω_s_0: fp = 2049.6365 - 2042.0;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
@@ -213,7 +213,7 @@ impl QubitSystem {
 
         let circuit = QuantumCircuit::new(&[
             //(H1, 0.000001/SQRT_2),
-            (H, 0.000001)
+            (H, 0.0001)
         ]);
 
         (
@@ -245,31 +245,50 @@ impl QubitSystem {
                 .lindblad(ρ, &self.c_out_phased) // c_out
     }
 
-    fn stochastic(&self, H: &Operator, ρ: &Operator) -> (Operator, Operator) {
+    fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Operator; 2]) {
         let cop = &self.c_out_phased;
-        let r = self.dZ.conjugate()*cop;
-        let u = r*ρ + ρ*r.dagger();
-        let v = u.trace();
-        let w = r + r.dagger();
+        let cop_dagger = cop.dagger();
+
+        let u = [ρ * cop_dagger, cop*ρ];
+        let v = [-u[0].trace(), u[1].trace()];
+        let t = [v[0]*ρ + u[0], v[1]*ρ + u[1]];
+
+        // TODO: implement Complex±Operator
+        // TODO: implement Operator-Identity
+        let tp = [v[0]*Operator::identity()+cop_dagger-cop_dagger*ρ,
+                  &(u[1]*Operator::identity()+v[1]*Operator::identity())-cop];
+
+        // TODO: implement I*Complex
         (
-            u - v*ρ,                         // b
-            w - w*ρ - v*Operator::identity() // b'
+            [t[0]-t[1],   I*(t[0]+t[1])],
+            [tp[0]-tp[1], I*(tp[0]+tp[1])]
         )
+
+        //let cop = &self.c_out_phased;
+        //let r = self.dZ.conjugate()*cop;
+        //let u = r*ρ + ρ*r.dagger();
+        //let v = u.trace();
+        //let w = r + r.dagger();
+        //(
+        //    u - v*ρ,                         // b
+        //    w - w*ρ - v*Operator::identity() // b'
+        //)
     }
 
     fn millstein(&mut self, H: &Operator) {
         let a = self.deterministic(H, &self.ρ);
         let (b, b_prime) = self.stochastic(H, &self.ρ);
         let ΔW = self.dZ;
-        self.ρ += a * Δt + b + 0.5*b*b_prime*(Complex::from(1.0) - Δt/(ΔW*ΔW))
+        self.ρ += a * Δt
+            + b[0]*ΔW + 0.5*b[0]*b_prime[0]*(ΔW*ΔW - Δt.into())
+            + b[1]*ΔW + 0.5*b[1]*b_prime[1]*(ΔW*ΔW - Δt.into())
     }
 
-    fn euler(&mut self, H: &Operator) {
-        let a = self.deterministic(H, &self.ρ);
-        let (b, b_prime) = self.stochastic(H, &self.ρ);
-        self.ρ += a * Δt + b
-            ;
-    }
+    //fn euler(&mut self, H: &Operator) {
+    //    let a = self.deterministic(H, &self.ρ);
+    //    let (b, b_prime) = self.stochastic(H, &self.ρ);
+    //    self.ρ += a * Δt + b;
+    //}
 
 
     //fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {

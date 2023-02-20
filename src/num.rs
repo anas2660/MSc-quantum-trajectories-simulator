@@ -1,4 +1,4 @@
-use std::ops::DivAssign;
+use std::ops::{DivAssign, Neg};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -450,5 +450,13 @@ impl Mul for Complex {
     type Output = Complex;
     fn mul(self, rhs: Self) -> Self::Output {
         &self * &rhs
+    }
+}
+
+impl Neg for Complex {
+    type Output = Complex;
+
+    fn neg(self) -> Self::Output {
+        Complex { real: -self.real, imag: -self.imag }
     }
 }
