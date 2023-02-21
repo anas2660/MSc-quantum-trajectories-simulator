@@ -177,6 +177,17 @@ impl Operator {
         result
     }
 
+    #[inline]
+    pub fn mul_i(&self) -> Self {
+        let mut result = *self;
+        for i in 0..Operator::SIZE {
+            for j in 0..Operator::SIZE {
+                result.elements[i][j] = result.elements[i][j].mul_i();
+            }
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
@@ -461,6 +472,8 @@ impl Sub<Operator> for Complex {
         &self-rhs
     }
 }
+
+
 
 
 

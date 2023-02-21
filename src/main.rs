@@ -258,10 +258,9 @@ impl QubitSystem {
             v[1] + (&u[1] - cop)
         ];
 
-        // TODO: implement I*Operator
         (
-            [t[0]-t[1],   I*(t[0]+t[1])],
-            [tp[0]-tp[1], I*(tp[0]+tp[1])]
+            [t[0]-t[1],   (t[0]+t[1]).mul_i()],
+            [tp[0]-tp[1], (tp[0]+tp[1]).mul_i()]
         )
     }
 

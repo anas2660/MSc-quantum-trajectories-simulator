@@ -46,6 +46,7 @@ macro_rules! C {
 }
 pub(crate) use C;
 
+
 impl Complex {
     //    fn from_real(fp) -> Complex {}
     #[inline]
@@ -61,6 +62,14 @@ impl Complex {
         Complex {
             real: self.real,
             imag: -self.imag,
+        }
+    }
+
+    #[inline]
+    pub fn mul_i(&self) -> Self {
+        Complex {
+            real: -self.imag,
+            imag: self.real,
         }
     }
 
@@ -460,3 +469,4 @@ impl Neg for Complex {
         Complex { real: -self.real, imag: -self.imag }
     }
 }
+
