@@ -41,26 +41,26 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.0002;
-const STEP_COUNT: u32 = 5000;
+const Δt: fp = 0.8;
+const STEP_COUNT: u32 = 10000;
 const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 64;
-const SIMULATIONS_PER_THREAD: u32 = 1;
+const SIMULATIONS_PER_THREAD: u32 = 10;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
 const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(3.00, 0.0); // Max value is kappa
+const β:    cfp = Complex::new(8.00, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 05.000000;
+const η:     fp = 0.500000;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 6.6;
+const χ_0:   fp = 0.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 - 2042.0;
-const ω_s_0: fp = 2049.6365 - 2042.0;
+const ω_r:   fp = 28368.582 - 2049.0;
+const ω_s_0: fp = 2049.6365 - 2049.0;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
@@ -253,10 +253,9 @@ impl QubitSystem {
         let v = [-u[0].trace(), u[1].trace()];
         let t = [v[0]*ρ + u[0], v[1]*ρ + u[1]];
 
-        // TODO: implement Complex-Operator
-        // TODO: implement Operator-Identity
-        let tp = [v[0] + cop_dagger - cop_dagger*ρ,
-                  v[1] + (&u[1] - cop)
+        let tp = [
+            v[0] - cop_dagger*(ρ.sub_identity()),
+            v[1] + (&u[1] - cop)
         ];
 
         // TODO: implement I*Operator
@@ -279,10 +278,12 @@ impl QubitSystem {
     fn millstein(&mut self, H: &Operator) {
         let a = self.deterministic(H, &self.ρ);
         let (b, b_prime) = self.stochastic(H, &self.ρ);
-        let ΔW = self.dZ;
+        let ΔWx = self.dZ.real;
+        let ΔWy = self.dZ.imag;
+        let Δtv = V::splat(Δt);
         self.ρ += a * Δt
-            + b[0]*ΔW + 0.5*b[0]*b_prime[0]*(ΔW*ΔW - Δt.into())
-            + b[1]*ΔW + 0.5*b[1]*b_prime[1]*(ΔW*ΔW - Δt.into())
+            + b[0]*ΔWx + 0.5*b[0]*b_prime[0]*(ΔWx*ΔWx - Δtv)
+            + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
     }
 
     //fn euler(&mut self, H: &Operator) {

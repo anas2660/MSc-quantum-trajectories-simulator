@@ -167,6 +167,16 @@ impl Operator {
         result
     }
 
+    #[inline]
+    pub fn sub_identity(&self) -> Self {
+        let mut result = *self;
+        let one: Complex = 1.0.into();
+        for i in 0..Operator::SIZE {
+            result.elements[i][i] -= one;
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
@@ -427,6 +437,28 @@ impl Add<Operator> for Complex {
     #[inline]
     fn add(self, rhs: Operator) -> Self::Output {
         &self+rhs
+    }
+}
+
+impl Sub<Operator> for &Complex {
+    type Output = Operator;
+
+    #[inline]
+    fn sub(self, rhs: Operator) -> Self::Output {
+        let mut result = rhs;
+        for i in 0..Operator::SIZE {
+            result.elements[i][i] -= self;
+        }
+        result
+    }
+}
+
+impl Sub<Operator> for Complex {
+    type Output = Operator;
+
+    #[inline]
+    fn sub(self, rhs: Operator) -> Self::Output {
+        &self-rhs
     }
 }
 
