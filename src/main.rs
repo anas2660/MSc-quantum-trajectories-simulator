@@ -256,7 +256,8 @@ impl QubitSystem {
         // TODO: implement Complex-Operator
         // TODO: implement Operator-Identity
         let tp = [v[0] + cop_dagger - cop_dagger*ρ,
-                  &(u[1]*Operator::identity()+v[1]*Operator::identity())-cop];
+                  v[1] + (&u[1] - cop)
+        ];
 
         // TODO: implement I*Operator
         (
