@@ -253,12 +253,12 @@ impl QubitSystem {
         let v = [-u[0].trace(), u[1].trace()];
         let t = [v[0]*ρ + u[0], v[1]*ρ + u[1]];
 
-        // TODO: implement Complex±Operator
+        // TODO: implement Complex-Operator
         // TODO: implement Operator-Identity
-        let tp = [v[0]*Operator::identity()+cop_dagger-cop_dagger*ρ,
+        let tp = [v[0] + cop_dagger - cop_dagger*ρ,
                   &(u[1]*Operator::identity()+v[1]*Operator::identity())-cop];
 
-        // TODO: implement I*Complex
+        // TODO: implement I*Operator
         (
             [t[0]-t[1],   I*(t[0]+t[1])],
             [tp[0]-tp[1], I*(tp[0]+tp[1])]

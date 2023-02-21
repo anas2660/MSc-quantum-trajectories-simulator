@@ -408,6 +408,30 @@ impl Div<Complex> for Operator {
     }
 }
 
+impl Add<Operator> for &Complex {
+    type Output = Operator;
+
+    #[inline]
+    fn add(self, rhs: Operator) -> Self::Output {
+        let mut result = rhs;
+        for i in 0..Operator::SIZE {
+            result.elements[i][i] += self;
+        }
+        result
+    }
+}
+
+impl Add<Operator> for Complex {
+    type Output = Operator;
+
+    #[inline]
+    fn add(self, rhs: Operator) -> Self::Output {
+        &self+rhs
+    }
+}
+
+
+
 //// This doesn't work.
 // impl Div<&Operator> for &Complex {
 //     type Output = Operator;
