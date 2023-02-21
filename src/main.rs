@@ -263,16 +263,6 @@ impl QubitSystem {
             [t[0]-t[1],   I*(t[0]+t[1])],
             [tp[0]-tp[1], I*(tp[0]+tp[1])]
         )
-
-        //let cop = &self.c_out_phased;
-        //let r = self.dZ.conjugate()*cop;
-        //let u = r*ρ + ρ*r.dagger();
-        //let v = u.trace();
-        //let w = r + r.dagger();
-        //(
-        //    u - v*ρ,                         // b
-        //    w - w*ρ - v*Operator::identity() // b'
-        //)
     }
 
     fn millstein(&mut self, H: &Operator) {
@@ -290,30 +280,6 @@ impl QubitSystem {
     //    let a = self.deterministic(H, &self.ρ);
     //    let (b, b_prime) = self.stochastic(H, &self.ρ);
     //    self.ρ += a * Δt + b;
-    //}
-
-
-    //fn dv(&self, H: &Operator, ρ: &Operator) -> (Operator, ()/*cfp*/) {
-    //    let cop = &self.c_out_phased;
-    //    let r = self.dZ.conjugate()*cop;
-    //    let term = r*ρ + ρ*r.dagger();
-    //    let Hcal_ρ = term - term.trace()*ρ;
-    //
-    //    // let a = self.measurement;
-    //    (
-    //        *commutator(H, ρ)
-    //            .scale(&MINUS_I)
-    //            ////+ self.lindblad(a)
-    //            // NOTE: Are these not missing a ρ factor?
-    //            .lindblad(ρ, &self.c1) // Photon field transmission/losses
-    //            //////+ self.lindblad(&self.c2) // Decay to ground state
-    //            .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
-    //            .lindblad(ρ, cop) // c_out
-    //            .add(&Hcal_ρ)
-    //            ,
-    //        (),
-    //    )
-    //    // + chi_rho * self.d_chi_rho.scale((self.dW * self.dW * dt - 1.0) * 0.5) // Milstein
     //}
 
     //fn runge_kutta(&mut self, H: &Operator) {
