@@ -473,38 +473,6 @@ impl Sub<Operator> for Complex {
     }
 }
 
-
-
-
-
-//// This doesn't work.
-// impl Div<&Operator> for &Complex {
-//     type Output = Operator;
-//     fn div(self, rhs: &Operator) -> Self::Output {
-//         let identity = Operator::identity();
-//         let mut result = Operator::zero();
-//
-//         for n in 0..6 {
-//             let factor = -((n&1) as fp);
-//             result += (rhs - &identity).pow(n).scale(factor);
-//         }
-//
-//         *self * result
-//     }
-// }
-//
-// impl Div<Operator> for Complex {
-//     type Output = Operator;
-//     #[inline]
-//     fn div(self, rhs: Operator) -> Self::Output {
-//         &self / &rhs
-//     }
-// }
-
-
-
-
-
 #[derive(Clone,Copy)]
 pub struct StateProbabilitiesSimd {
     pub v: [Real; Operator::SIZE]
@@ -514,7 +482,6 @@ pub struct StateProbabilitiesSimd {
 pub struct StateProbabilities {
     pub v: [fp; Operator::SIZE]
 }
-
 
 impl StateProbabilitiesSimd {
 
