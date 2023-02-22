@@ -30,28 +30,28 @@ const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
 const initial_probabilities: [fp; Operator::SIZE] = [
-    //1.0, // 00
-    //0.0, // 01
-    //0.0, // 10
+    //0.0, // 00
+    //0.45, // 01
+    //0.55, // 10
     //0.00  // 11
-    0.01, // 00
-    0.44, // 01
-    0.54, // 10
+    0.0, // 00
+    0.00, // 01
+    0.99, // 10
     0.01  // 11
 ];
 
 // Simulation constants
-const Δt: fp = 0.8;
-const STEP_COUNT: u32 = 10000;
-const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 64;
+const Δt: fp = 0.01;
+const STEP_COUNT: u32 = 1000;
+const THREAD_COUNT: u32 = 1;
+const HIST_BIN_COUNT: usize = 32;
 const SIMULATIONS_PER_THREAD: u32 = 10;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
-const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(8.00, 0.0); // Max value is kappa
+const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(1.00, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
 const η:     fp = 0.500000;
 const Φ:     fp = 0.0; // c_out phase shift Phi
@@ -59,8 +59,8 @@ const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582 - 2049.0;
-const ω_s_0: fp = 2049.6365 - 2049.0;
+const ω_r:   fp = 28368.582;
+const ω_s_0: fp = 2049.6365;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
@@ -235,7 +235,11 @@ impl QubitSystem {
     }
 
     fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
-        *commutator(H, ρ)
+        //println!("rho rho trace {}", (ρ*ρ).trace());
+        let mut c = commutator(H, ρ);
+        //println!("Tr(c) = {}", c.trace());
+
+        *c
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
                 // NOTE: Are these not missing a ρ factor?
@@ -245,7 +249,7 @@ impl QubitSystem {
                 .lindblad(ρ, &self.c_out_phased) // c_out
     }
 
-    fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Operator; 2]) {
+    fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Complex; 2]) {
         let cop = &self.c_out_phased;
         let cop_dagger = cop.dagger();
 
@@ -260,19 +264,38 @@ impl QubitSystem {
 
         (
             [t[0]-t[1],   (t[0]+t[1]).mul_i()],
-            [tp[0]-tp[1], (tp[0]+tp[1]).mul_i()]
+            [
+                -((cop+&cop_dagger)*ρ).trace(),
+                I*((cop+&cop_dagger)*ρ).trace()
+            ]
         )
+
+        //(
+        //    [t[0]-t[1],   (t[0]+t[1]).mul_i()],
+        //    [tp[0]-tp[1], (tp[0]+tp[1]).mul_i()]
+        //)
     }
 
     fn millstein(&mut self, H: &Operator) {
-        let a = self.deterministic(H, &self.ρ);
+        //let a = self.deterministic(H, &self.ρ);
+        let adt = self.runge_kutta(H);
         let (b, b_prime) = self.stochastic(H, &self.ρ);
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
         let Δtv = V::splat(Δt);
-        self.ρ += a * Δt
-            + b[0]*ΔWx + 0.5*b[0]*b_prime[0]*(ΔWx*ΔWx - Δtv)
-            + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
+        self.ρ += adt //a * Δt
+            //+ b[0]*ΔWx + 0.5*b[0]*b_prime[0]*(ΔWx*ΔWx - Δtv)
+            //+ b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
+    }
+
+
+    fn runge_kutta(&mut self, H: &Operator) -> Operator {
+        let k0 = self.deterministic(H, &self.ρ);
+        let k1 = self.deterministic(H, (self.ρ + 0.5 * Δt * k0).normalize());
+        let k2 = self.deterministic(H, (self.ρ + 0.5 * Δt * k1).normalize());
+        let k3 = self.deterministic(H, (self.ρ + Δt * k2).normalize());
+        (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3))
+        //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 
     //fn euler(&mut self, H: &Operator) {
@@ -416,7 +439,13 @@ let γ_φ = {γ_φ};
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
                 // Normalize rho.
+                ////println!("p1{}", system.ρ);
                 system.ρ.normalize();
+                ////println!("p2{}", system.ρ);
+                //assert!(system.ρ.trace().real[0] < 2.01);
+                //assert!(system.ρ.trace().real[0] > 0.1);
+
+                //println!("trace(rho) = {}", system.ρ.trace());
 
                 // Compute current.
                 // Original dW implementation reference
