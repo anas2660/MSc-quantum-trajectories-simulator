@@ -11,16 +11,17 @@ use std::{
 
 pub type V = std::simd::f64x4;
 pub type UV = std::simd::u64x4;
+pub type SV = std::simd::i64x4;
 pub type Real = V;
 #[allow(non_camel_case_types)]
 pub type cfp = Complex;
 #[allow(non_camel_case_types)]
 pub type fp = f64;
-#[allow(non_camel_case_types)]
 pub type Uint = u64;
+pub type Int = i64;
 
 pub const SQRT_2:        fp = std::f64::consts::SQRT_2;
-//pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
+pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Complex {
