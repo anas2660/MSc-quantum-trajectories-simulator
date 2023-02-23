@@ -294,6 +294,40 @@ impl QubitSystem {
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 
+
+    fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
+        #[inline]
+        fn Hcalρ(r: &Operator, ρ: &Operator) -> Operator {
+            let c = r*ρ + ρ*r.dagger();
+            c - c.trace()*ρ
+        }
+        [
+            FRAC_1_SQRT_2*Hcalρ(&self.c_out_phased, ρ),
+            FRAC_1_SQRT_2*Hcalρ(&(MINUS_I*self.c_out_phased), ρ)
+        ]
+    }
+
+    fn srk2(&mut self, H: &Operator) {
+        let δ: fp = Δt;
+        let sqrtδ = δ.sqrt();
+        let term1 = self.runge_kutta(H);
+        //let term1 = self.deterministic(H,ρ)*δ;
+        let ρ = &self.ρ;
+        let b = self.stochastic2(H, &self.ρ);
+        let Ycal = ρ + &(term1) + b[0]*sqrtδ + b[1]*sqrtδ;
+        let bcal = self.stochastic2(H, &Ycal);
+
+        let ΔWx = self.dZ.real;
+        let ΔWy = self.dZ.imag;
+        //let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
+        let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
+        let δ = V::splat(δ);
+        self.ρ += term1
+            + (b[0]*ΔWx + b[1]*ΔWy)
+            + one_over_2sqrtδ*(bcal[0]-b[0])*(ΔWx*ΔWx - δ)
+            + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
+    }
+
     //fn euler(&mut self, H: &Operator) {
     //    let a = self.deterministic(H, &self.ρ);
     //    let (b, b_prime) = self.stochastic(H, &self.ρ);
