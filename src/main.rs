@@ -524,13 +524,16 @@ let γ_φ = {γ_φ};
         data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
+    let mut buffer = Vec::with_capacity(std::mem::size_of::<u32>() * HIST_BIN_COUNT * Operator::SIZE * STEP_COUNT as usize);
     for state in trajectory_histograms.iter() {
         for hist in state.iter() {
             for bin in hist.bins.iter().rev() {
-                hist_file.write_all(&bin.to_le_bytes()).unwrap();
+                buffer.extend_from_slice(&bin.to_le_bytes());
             }
         }
     }
+    hist_file.write_all(&buffer).unwrap();
+
 }
 
 fn bloch_vector(rho: &Operator) -> [fp; 3] {
