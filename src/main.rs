@@ -41,27 +41,27 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.01;
-const STEP_COUNT: u32 = 2000;
-const THREAD_COUNT: u32 = 8;
+const Δt: fp = 0.00001;
+const STEP_COUNT: u32 = 3000;
+const THREAD_COUNT: u32 = 10;
 const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 10;
+const SIMULATIONS_PER_THREAD: u32 = 8;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
-const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(50000.0, 0.0); // Max value is kappa
-const γ_dec: fp = 1.0;
-const η:     fp = 10000000.00;
+const κ_1:   fp = 1.1; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(0.200000, 0.0); // Max value is kappa
+const γ_dec: fp = 10000.01; // should be g^2/ω    (174) side 49
+const η:     fp = 0.1;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
-//const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582;//-2000.0;
-const ω_s_0: fp = 2049.6365;//-2000.0;
-//const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
+const g_0:   fp = 125.6637061435917; // sqrt(Δ_s_0 χ)
+const ω_r:   fp = 28368.582/1000.0;
+const ω_s_0: fp = 2049.6365/1000.0;
+//const Δ_s_0: fp = 26318.94506957162;
 
 const ω_b:       fp = 0.1;
 //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
@@ -69,6 +69,7 @@ const Δ_b:  [fp; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
 const Δ_br:      fp = ω_r; // ω_b - ω_r
 const Δ_r:       fp = ω_r;
 const χ:    [fp; 2] = [χ_0; 2];
+const g:    [fp; 2] = [g_0, g_0];
 
 #[derive(Clone)]
 struct QubitSystem {
@@ -167,6 +168,27 @@ impl QubitSystem {
 
         let χσ_z = apply_and_scale_individually(χ, &σ_z);
 
+        let sqrt2κ1 = fp::sqrt(2.0*κ_1);
+
+        // Try 1
+        //let a = apply_and_scale_individually(g, &σ_minus) + sqrt2κ1*β*identity;
+        //let a = a / (I*κ - Complex::from(Δ_br));
+        // Try 2
+        let a = sqrt2κ1*β*identity - I*apply_and_scale_individually(g, &σ_minus);
+        let a = a / (κ - I*Δ_br);
+
+
+        let N = a.dagger() * a;
+
+        let H = Δ_br * N
+            + 0.5        * apply_and_scale_individually(Δ_b, &σ_z)
+            + a.dagger() * apply_and_scale_individually(g, &σ_minus)
+            + a          * apply_and_scale_individually(g, &σ_plus)
+            + I*sqrt2κ1*(β*a.dagger() - β.conjugate()*a)
+            ;
+
+        // DISPERSIVE
+        /*
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
                 * (2.*κ_1).sqrt() * β
@@ -195,6 +217,8 @@ impl QubitSystem {
             //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
             //+ (N + 0.5*identity) * χσ_z
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
+        */
+
 
         //let hamiltonian = omega_r * a.dagger() * a + (omega_s + 2.0 * (g*g/delta_s) * (a.dagger()*a + 0.5*Operator::identity()));
 
@@ -234,7 +258,7 @@ impl QubitSystem {
 
         let circuit = QuantumCircuit::new(&[
             //(H1, 0.000001/SQRT_2),
-            (H, 0.0001)
+            (H, 0.0005)
         ]);
 
         (
@@ -292,13 +316,13 @@ impl QubitSystem {
     }
 
     fn millstein(&mut self, H: &Operator) {
-        //let a = self.deterministic(H, &self.ρ);
-        let adt = self.runge_kutta(H);
+        let a = self.deterministic(H, &self.ρ);
+        //let adt = self.runge_kutta(H);
         let (b, b_prime) = self.stochastic(H, &self.ρ);
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
         let Δtv = V::splat(Δt);
-        self.ρ += adt //a * Δt
+        self.ρ += a * Δt
             + b[0]*ΔWx + 0.5*b[0]*b_prime[0]*(ΔWx*ΔWx - Δtv)
             + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
     }
@@ -328,11 +352,12 @@ impl QubitSystem {
     fn srk2(&mut self, H: &Operator) {
         let δ: fp = Δt;
         let sqrtδ = δ.sqrt();
-        let term1 = self.runge_kutta(H);
-        //let term1 = self.deterministic(H,ρ)*δ;
+        //let term1 = self.runge_kutta(H);
         let ρ = &self.ρ;
+        let mut term1 = ρ + &(self.deterministic(H,ρ)*δ);
+        term1.normalize();
         let b = self.stochastic2(H, ρ);
-        let mut ρcal = ρ + &(term1) + b[0]*sqrtδ + b[1]*sqrtδ;
+        let mut ρcal = term1 + b[0]*sqrtδ + b[1]*sqrtδ;
         let bcal = self.stochastic2(H, ρcal.normalize());
 
         let ΔWx = self.dZ.real;
@@ -340,7 +365,7 @@ impl QubitSystem {
         //let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
         let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
         let δ = V::splat(δ);
-        self.ρ += term1
+        self.ρ = term1
             + (b[0]*ΔWx + b[1]*ΔWy)
             + one_over_2sqrtδ*(bcal[0]-b[0])*(ΔWx*ΔWx - δ)
             + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
@@ -362,7 +387,7 @@ impl QubitSystem {
         let K1 = Δt*a(&self.ρ) + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
 
         let mut new_ρ = self.ρ + K1;
-        new_ρ.normalize();
+        //new_ρ.normalize();
         let bt = b(&new_ρ);
         let K2 = Δt*a(&new_ρ) + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
         self.ρ += 0.5*(K1+K2);
@@ -509,8 +534,8 @@ let γ_φ = {γ_φ};
                 //system.runge_kutta(H);
                 //system.euler(H);
                 //system.millstein(H);
-                //system.srk2(H);
-                system.srk2v2(H, S.gen(&mut rng));
+                //system.srk2(H); // NAN
+                system.srk2v2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
