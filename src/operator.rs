@@ -311,6 +311,14 @@ impl Mul<V> for Operator {
     }
 }
 
+impl Mul<Operator> for V {
+    type Output = Operator;
+    #[inline]
+    fn mul(self, rhs: Operator) -> Self::Output {
+        &rhs * &self
+    }
+}
+
 impl Mul<&Complex> for &Operator {
     type Output = Operator;
 

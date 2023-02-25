@@ -34,33 +34,33 @@ const initial_probabilities: [fp; Operator::SIZE] = [
     //0.45, // 01
     //0.55, // 10
     //0.00  // 11
-    0.0, // 00
-    0.00, // 01
-    0.99, // 10
-    0.01  // 11
+    0.25, // 00
+    0.24, // 01
+    0.34, // 10
+    0.15  // 11
 ];
 
 // Simulation constants
-const Δt: fp = 0.1;
+const Δt: fp = 0.01;
 const STEP_COUNT: u32 = 2000;
 const THREAD_COUNT: u32 = 8;
-const HIST_BIN_COUNT: usize = 32;
-const SIMULATIONS_PER_THREAD: u32 = 40;
+const HIST_BIN_COUNT: usize = 128;
+const SIMULATIONS_PER_THREAD: u32 = 10;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
 const κ_1:   fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(1.50, 0.0); // Max value is kappa
+const β:    cfp = Complex::new(50000.0, 0.0); // Max value is kappa
 const γ_dec: fp = 1.0;
-const η:     fp = 1.500000;
+const η:     fp = 10000000.00;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0:   fp = 0.6;
 //const g:     fp = 125.6637061435917 / 1.0;
-const ω_r:   fp = 28368.582-2049.0;
-const ω_s_0: fp = 2049.6365-2049.0;
+const ω_r:   fp = 28368.582;//-2000.0;
+const ω_s_0: fp = 2049.6365;//-2000.0;
 //const Δ_s_0: fp = 26318.94506957162 / 1000000.0;
 
 const ω_b:       fp = 0.1;
@@ -109,7 +109,7 @@ impl SGenerator {
 
 #[inline]
 fn commutator(a: &Operator, b: &Operator) -> Operator {
-    &(a * b) - &(b * a)
+    a*b - b*a
 }
 
 #[inline]
@@ -259,7 +259,6 @@ impl QubitSystem {
         *commutator(H, ρ)
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
-                // NOTE: Are these not missing a ρ factor?
                 .lindblad(ρ, &self.c1) // Photon field transmission/losses
                 //////+ self.lindblad(&self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
@@ -305,7 +304,6 @@ impl QubitSystem {
             + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
     }
 
-
     fn runge_kutta(&mut self, H: &Operator) -> Operator {
         let k0 = self.deterministic(H, &self.ρ);
         let k1 = self.deterministic(H, (self.ρ + 0.5 * Δt * k0).normalize());
@@ -334,9 +332,9 @@ impl QubitSystem {
         let term1 = self.runge_kutta(H);
         //let term1 = self.deterministic(H,ρ)*δ;
         let ρ = &self.ρ;
-        let b = self.stochastic2(H, &self.ρ);
-        let Ycal = ρ + &(term1) + b[0]*sqrtδ + b[1]*sqrtδ;
-        let bcal = self.stochastic2(H, &Ycal);
+        let b = self.stochastic2(H, ρ);
+        let mut ρcal = ρ + &(term1) + b[0]*sqrtδ + b[1]*sqrtδ;
+        let bcal = self.stochastic2(H, ρcal.normalize());
 
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
@@ -348,6 +346,27 @@ impl QubitSystem {
             + one_over_2sqrtδ*(bcal[0]-b[0])*(ΔWx*ΔWx - δ)
             + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
     }
+
+
+    // TODO: generate an S for each stochastic term?
+    fn srk2v2(&mut self, H: &Operator, S: i32) {
+
+        let a = |ρ| { self.deterministic(H, ρ) };
+        let b = |ρ| { self.stochastic2(H, ρ) };
+
+        let ΔWx = self.dZ.real;
+        let ΔWy = self.dZ.imag;
+
+        let bt = b(&self.ρ);
+        let ct = Real::splat((S as fp) * Δt.sqrt());
+        let K1 = Δt*a(&self.ρ) + (ΔWx - ct) * bt[0] + (ΔWy - ct) * bt[1];
+
+        let new_ρ = self.ρ + K1;
+        let bt = b(&new_ρ);
+        let K2 = Δt*a(&new_ρ) + (ΔWx + ct) * bt[0] + (ΔWy + ct) * bt[1];
+        self.ρ += 0.5*(K1+K2);
+    }
+
 
     //fn euler(&mut self, H: &Operator) {
     //    let a = self.deterministic(H, &self.ρ);
@@ -426,6 +445,12 @@ let γ_φ = {γ_φ};
         // Create initial system.
         let (initial_system, circuit) = QubitSystem::new();
 
+        // RNG
+        let mut rng = thread_rng();
+
+        // S generator
+        let mut S = SGenerator::new(&mut rng);
+
         // sqrt(η) is from the definition of dZ.
         // 1/sqrt(dt) is to make the variance σ = dt
         let sqrtηdt = Real::splat(η.sqrt() * Δt.sqrt());
@@ -484,7 +509,9 @@ let γ_φ = {γ_φ};
                 // Do the runge-kutta4 step.
                 //system.runge_kutta(H);
                 //system.euler(H);
-                system.millstein(H);
+                //system.millstein(H);
+                //system.srk2(H);
+                system.srk2v2(H, S.gen(&mut rng));
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
