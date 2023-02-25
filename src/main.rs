@@ -303,7 +303,7 @@ impl QubitSystem {
             + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
     }
 
-    fn runge_kutta(&mut self, H: &Operator) -> Operator {
+    fn runge_kutta(&self, H: &Operator) -> Operator {
         let k0 = self.deterministic(H, &self.ρ);
         let k1 = self.deterministic(H, (self.ρ + 0.5 * Δt * k0).normalize());
         let k2 = self.deterministic(H, (self.ρ + 0.5 * Δt * k1).normalize());
@@ -346,9 +346,7 @@ impl QubitSystem {
             + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
     }
 
-
-    // TODO: generate an S for each stochastic term?
-    fn srk2v2(&mut self, H: &Operator, S: i32) {
+    fn srk2v2(&mut self, H: &Operator, S: [i32; 2]) {
 
         let a = |ρ| { self.deterministic(H, ρ) };
         let b = |ρ| { self.stochastic2(H, ρ) };
@@ -357,12 +355,16 @@ impl QubitSystem {
         let ΔWy = self.dZ.imag;
 
         let bt = b(&self.ρ);
-        let ct = Real::splat((S as fp) * Δt.sqrt());
-        let K1 = Δt*a(&self.ρ) + (ΔWx - ct) * bt[0] + (ΔWy - ct) * bt[1];
+        let sqrtΔt = Δt.sqrt();
+        let ctx = Real::splat((S[0] as fp) * sqrtΔt);
+        let cty = Real::splat((S[1] as fp) * sqrtΔt);
 
-        let new_ρ = self.ρ + K1;
+        let K1 = Δt*a(&self.ρ) + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
+
+        let mut new_ρ = self.ρ + K1;
+        new_ρ.normalize();
         let bt = b(&new_ρ);
-        let K2 = Δt*a(&new_ρ) + (ΔWx + ct) * bt[0] + (ΔWy + ct) * bt[1];
+        let K2 = Δt*a(&new_ρ) + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
         self.ρ += 0.5*(K1+K2);
     }
 
