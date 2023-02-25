@@ -33,7 +33,7 @@ FORMAT_STRING = '|{0:0' + str(int(np.log2(state_count))) + 'b}>'
 for i in np.arange(state_count):
     plt.plot(t, data[:, i], linewidth=3, label=FORMAT_STRING.format(i))
 
-# plt.plot(np.sum(data, axis=1), linewidth=3)
+plt.plot(t, np.sum(data, axis=1), linewidth=3)
 plt.legend()
 plt.grid()
 #plt.xlim(t.max())
