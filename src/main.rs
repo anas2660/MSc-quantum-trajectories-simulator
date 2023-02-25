@@ -78,7 +78,6 @@ struct QubitSystem {
     sqrt_η: fp,
     c_out_phased: Operator,
     dχρ: Operator,
-    rng: ThreadRng,
     measurement: Operator,
     c1: Operator,
     c2: Operator,
@@ -244,7 +243,6 @@ impl QubitSystem {
                 sqrt_η,
                 c_out_phased,
                 dχρ,
-                rng: thread_rng(),
                 measurement: Operator::from_fn(|r, c| ONE * (r * c) as fp),
                 c1,
                 c2,
@@ -497,10 +495,8 @@ let γ_φ = {γ_φ};
                 // Sample on the normal distribution.
                 {
                     for lane in 0..Real::LANES {
-                        system.dZ.real[lane] =
-                            system.rng.sample::<fp, StandardNormal>(StandardNormal);
-                        system.dZ.imag[lane] =
-                            system.rng.sample::<fp, StandardNormal>(StandardNormal);
+                        system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
+                        system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
 
                     system.dZ *= &sqrtηdt;
