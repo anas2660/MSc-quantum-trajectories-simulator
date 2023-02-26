@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-float_type = np.float64
+float_type = np.float32
 
 
 

@@ -9,19 +9,52 @@ use std::{
     ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
 };
 
-pub type V = std::simd::f64x4;
-pub type UV = std::simd::u64x4;
-pub type SV = std::simd::i64x4;
+#[cfg(not(feature = "double-precision"))]
+pub type V = std::simd::f32x8;
+#[cfg(not(feature = "double-precision"))]
+pub type UV = std::simd::u32x8;
+#[cfg(not(feature = "double-precision"))]
+pub type SV = std::simd::i32x8;
+#[cfg(not(feature = "double-precision"))]
 pub type Real = V;
+#[cfg(not(feature = "double-precision"))]
 #[allow(non_camel_case_types)]
 pub type cfp = Complex;
+#[cfg(not(feature = "double-precision"))]
 #[allow(non_camel_case_types)]
-pub type fp = f64;
-pub type Uint = u64;
-pub type Int = i64;
+pub type fp = f32;
+#[cfg(not(feature = "double-precision"))]
+pub type Uint = u32;
+#[cfg(not(feature = "double-precision"))]
+pub type Int = i32;
+#[cfg(not(feature = "double-precision"))]
+pub const SQRT_2:        fp = std::f32::consts::SQRT_2;
+#[cfg(not(feature = "double-precision"))]
+pub const FRAC_1_SQRT_2: fp = std::f32::consts::FRAC_1_SQRT_2;
 
-pub const SQRT_2:        fp = std::f64::consts::SQRT_2;
-pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
+#[cfg(feature = "double-precision")]
+pub type V = std::simd::f32x8;
+#[cfg(feature = "double-precision")]
+pub type UV = std::simd::u32x8;
+#[cfg(feature = "double-precision")]
+pub type SV = std::simd::i32x8;
+#[cfg(feature = "double-precision")]
+pub type Real = V;
+#[cfg(feature = "double-precision")]
+#[allow(non_camel_case_types)]
+pub type cfp = Complex;
+#[cfg(feature = "double-precision")]
+#[allow(non_camel_case_types)]
+pub type fp = f32;
+#[cfg(feature = "double-precision")]
+pub type Uint = u32;
+#[cfg(feature = "double-precision")]
+pub type Int = i32;
+#[cfg(feature = "double-precision")]
+pub const SQRT_2:        fp = std::f32::consts::SQRT_2;
+#[cfg(feature = "double-precision")]
+pub const FRAC_1_SQRT_2: fp = std::f32::consts::FRAC_1_SQRT_2;
+
 
 #[derive(Debug, Clone, Copy)]
 pub struct Complex {
@@ -296,13 +329,16 @@ impl Mul<&Complex> for &Complex {
 
     #[inline]
     fn mul(self, rhs: &Complex) -> Self::Output {
-        Complex {
-            real: self.real * rhs.real - self.imag * rhs.imag,
-            imag: self.real * rhs.imag + self.imag * rhs.real,
+        #[cfg(feature = "double-precision")]
+        {
+            Complex {
+                real: self.real * rhs.real - self.imag * rhs.imag,
+                imag: self.real * rhs.imag + self.imag * rhs.real,
+            }
         }
 
-        /*
         // FMA implementation (f32x8 only)
+        #[cfg(not(feature = "double-precision"))]
         unsafe {
             let mut real: __m256;
             let mut imag: __m256;
@@ -323,7 +359,6 @@ impl Mul<&Complex> for &Complex {
 
             Complex { real: real.into(), imag: imag.into() }
         }
-        */
     }
 }
 
