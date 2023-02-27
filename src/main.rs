@@ -41,19 +41,19 @@ const initial_probabilities: [fp; Operator::SIZE] = [
 ];
 
 // Simulation constants
-const Δt: fp = 0.00001;
-const STEP_COUNT: u32 = 3000;
+const Δt: fp = 0.03;
+const STEP_COUNT: u32 = 30000;
 const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 128;
-const SIMULATIONS_PER_THREAD: u32 = 8;
+const HIST_BIN_COUNT: usize = 64;
+const SIMULATIONS_PER_THREAD: u32 = 5;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ:     fp = 1.2;
-const κ_1:   fp = 1.1; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(0.200000, 0.0); // Max value is kappa
-const γ_dec: fp = 10000.01; // should be g^2/ω    (174) side 49
-const η:     fp = 0.1;
+const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β:    cfp = Complex::new(40.0000, 0.0); // Max value is kappa
+const γ_dec: fp = 563.9773943; // should be g^2/ω    (174) side 49
+const η:     fp = 0.95;
 const Φ:     fp = 0.0; // c_out phase shift Phi
 const γ_φ:   fp = 0.001;
 //const ddelta: fp = delta_r - delta_s;
@@ -68,7 +68,7 @@ const ω_b:       fp = 0.1;
 const Δ_b:  [fp; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
 const Δ_br:      fp = ω_r; // ω_b - ω_r
 const Δ_r:       fp = ω_r;
-const χ:    [fp; 2] = [χ_0; 2];
+const χ:    [fp; 2] = [χ_0+0.02, χ_0-0.02];
 const g:    [fp; 2] = [g_0, g_0];
 
 #[derive(Clone)]
@@ -158,6 +158,7 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 
 
 impl QubitSystem {
+
     fn new() -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
@@ -170,13 +171,10 @@ impl QubitSystem {
 
         let sqrt2κ1 = fp::sqrt(2.0*κ_1);
 
-        // Try 1
-        //let a = apply_and_scale_individually(g, &σ_minus) + sqrt2κ1*β*identity;
-        //let a = a / (I*κ - Complex::from(Δ_br));
-        // Try 2
+        // NONDISPERSIVE
+        /*
         let a = sqrt2κ1*β*identity - I*apply_and_scale_individually(g, &σ_minus);
         let a = a / (κ - I*Δ_br);
-
 
         let N = a.dagger() * a;
 
@@ -184,11 +182,11 @@ impl QubitSystem {
             + 0.5        * apply_and_scale_individually(Δ_b, &σ_z)
             + a.dagger() * apply_and_scale_individually(g, &σ_minus)
             + a          * apply_and_scale_individually(g, &σ_plus)
-            + I*sqrt2κ1*(β*a.dagger() - β.conjugate()*a)
+            + I*sqrt2κ1  * (β*a.dagger() - β.conjugate()*a)
             ;
+         */
 
         // DISPERSIVE
-        /*
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
                 * (2.*κ_1).sqrt() * β
@@ -217,6 +215,7 @@ impl QubitSystem {
             //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
             //+ (N + 0.5*identity) * χσ_z
             //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
+        /*
         */
 
 
@@ -227,11 +226,19 @@ impl QubitSystem {
         //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
         // Remove any non-hermitian numerical error
-        let H = &H+(H.conjugate()-H).scale(0.5);
+        let the_non_hermitian_part = 0.5*(H.conjugate()-H);
+        let H = H+the_non_hermitian_part;
+        println!("THE NON HERMITIAN PART:\n{}", the_non_hermitian_part);
+
+        //const hbar: fp = 0.00000000000000000000000000000000010545718;
+        //let H = H*hbar;
+
 
         // Construct initial state
-        let ψ = Matrix::vector(&initial_probabilities.map(|p| p.sqrt() ));
+        let p_sum = initial_probabilities.iter().fold(0.0, |acc, x| acc+x);
+        let ψ = Matrix::vector(&initial_probabilities.map(|p| (p/p_sum).sqrt() ));
         let ρ = (&ψ * ψ.transpose()).to_operator();
+        println!("Initial ρ:\n{ρ}");
 
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
         let c1 = (2.0 * κ).sqrt() * a;
@@ -276,7 +283,7 @@ impl QubitSystem {
                 .scale(&MINUS_I)
                 ////+ self.lindblad(a)
                 .lindblad(ρ, &self.c1) // Photon field transmission/losses
-                //////+ self.lindblad(&self.c2) // Decay to ground state
+                //.lindblad(ρ, &self.c2) // Decay to ground state
                 .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
                 .lindblad(ρ, &self.c_out_phased) // c_out
     }
@@ -532,6 +539,7 @@ let γ_φ = {γ_φ};
                 // Do the runge-kutta4 step.
                 //system.runge_kutta(H);
                 //system.euler(H);
+                //////////let copy = system.ρ;
                 //system.millstein(H);
                 //system.srk2(H); // NAN
                 system.srk2v2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
@@ -539,12 +547,25 @@ let γ_φ = {γ_φ};
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
+                /////////let prenorm = system.ρ;
+
                 // Normalize rho.
                 ////println!("p1{}", system.ρ);
                 system.ρ.normalize();
                 ////println!("p2{}", system.ρ);
                 //assert!(system.ρ.trace().real[0] < 2.01);
                 //assert!(system.ρ.trace().real[0] > 0.1);
+                /////////let first = system.ρ[(0,0)].first();
+                /////////let is_nan = first.0.is_nan();
+                /////////let leaked = false;//first.1.abs() > 0.01;
+                /////////if is_nan || leaked {
+                /////////    println!("FAILED AT t = {t}");
+                /////////    println!("Leaked: {leaked}, NAN: {is_nan}");
+                /////////    println!("before=\n{copy}");
+                /////////    println!("prenorm:\n{prenorm}");
+                /////////    println!("ρ = \n{}", system.ρ);
+                /////////    panic!();
+                /////////}
 
                 //println!("trace(rho) = {}", system.ρ.trace());
 
