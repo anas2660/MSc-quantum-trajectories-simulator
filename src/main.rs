@@ -235,15 +235,8 @@ impl QubitSystem {
 
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
         let c1 = (2.0 * κ).sqrt() * a;
-        let c2 = γ_dec.sqrt() * &σ_minus;//sigma_minus;
-        let c3 = (γ_φ / 2.0).sqrt() * &σ_z;
-
-        let identity = Matrix::identity(2);
-
-        //let c_out = (c_out.kronecker(&identity) + identity.kronecker(&c_out)).to_operator();
-        //let c1 = (c1.kronecker(&identity) + identity.kronecker(&c1)).to_operator();
-        let c2 = (c2.kronecker(&identity) + identity.kronecker(&c2)).to_operator();
-        let c3 = apply_individually_parts(&c3);
+        let c2 = apply_individually(&(γ_dec.sqrt() * &σ_minus));
+        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z));
 
         let sqrt_η = η.sqrt();
         let c_out_phased = c_out * ((I * Φ).exp());
