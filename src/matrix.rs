@@ -64,7 +64,7 @@ impl Matrix {
         for j1 in 0..self.v[0].len() {
             for j2 in 0..rhs.v[0].len() {
                 for i1 in 0..self.v.len() {
-                    let coeff = self[((i1, j1))];
+                    let coeff = self[(i1, j1)];
 
                     for i2 in 0..rhs.v.len() {
                         result[index] = coeff * rhs[(i2, j2)];
