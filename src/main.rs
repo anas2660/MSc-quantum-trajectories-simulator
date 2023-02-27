@@ -653,6 +653,9 @@ fn bloch_vector(rho: &Operator) -> [fp; 3] {
 fn main() {
     println!("Starting simulation...");
 
+    #[cfg(feature="double-precision")]
+    println!("DOUBLE PRECISION");
+
     let start = std::time::Instant::now();
     simulate();
     let elapsed = start.elapsed().as_millis();
