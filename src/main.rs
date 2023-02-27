@@ -258,7 +258,7 @@ impl QubitSystem {
 
         let circuit = QuantumCircuit::new(&[
             //(H1, 0.000001/SQRT_2),
-            (H, 0.0005)
+            (H, Δt * (STEP_COUNT-1) as fp)
         ]);
 
         (
