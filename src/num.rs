@@ -33,11 +33,11 @@ pub const SQRT_2:        fp = std::f32::consts::SQRT_2;
 pub const FRAC_1_SQRT_2: fp = std::f32::consts::FRAC_1_SQRT_2;
 
 #[cfg(feature = "double-precision")]
-pub type V = std::simd::f32x8;
+pub type V = std::simd::f64x4;
 #[cfg(feature = "double-precision")]
-pub type UV = std::simd::u32x8;
+pub type UV = std::simd::u64x4;
 #[cfg(feature = "double-precision")]
-pub type SV = std::simd::i32x8;
+pub type SV = std::simd::i64x4;
 #[cfg(feature = "double-precision")]
 pub type Real = V;
 #[cfg(feature = "double-precision")]
@@ -45,15 +45,15 @@ pub type Real = V;
 pub type cfp = Complex;
 #[cfg(feature = "double-precision")]
 #[allow(non_camel_case_types)]
-pub type fp = f32;
+pub type fp = f64;
 #[cfg(feature = "double-precision")]
-pub type Uint = u32;
+pub type Uint = u64;
 #[cfg(feature = "double-precision")]
-pub type Int = i32;
+pub type Int = i64;
 #[cfg(feature = "double-precision")]
-pub const SQRT_2:        fp = std::f32::consts::SQRT_2;
+pub const SQRT_2:        fp = std::f64::consts::SQRT_2;
 #[cfg(feature = "double-precision")]
-pub const FRAC_1_SQRT_2: fp = std::f32::consts::FRAC_1_SQRT_2;
+pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
 
 
 #[derive(Debug, Clone, Copy)]
