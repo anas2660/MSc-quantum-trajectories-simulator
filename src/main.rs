@@ -387,7 +387,7 @@ impl QubitSystem {
         let K1 = Δt*a(&self.ρ) + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
 
         let mut new_ρ = self.ρ + K1;
-        //new_ρ.normalize();
+        new_ρ.normalize();
         let bt = b(&new_ρ);
         let K2 = Δt*a(&new_ρ) + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
         self.ρ += 0.5*(K1+K2);
