@@ -1,4 +1,4 @@
-use std::ops::{DivAssign, Neg};
+use std::{ops::{DivAssign, Neg}, simd::StdFloat};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -327,17 +327,45 @@ impl Div<Complex> for fp {
 impl Mul<&Complex> for &Complex {
     type Output = Complex;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: &Complex) -> Self::Output {
-        #[cfg(feature = "double-precision")]
-        {
-            Complex {
-                real: self.real * rhs.real - self.imag * rhs.imag,
-                imag: self.real * rhs.imag + self.imag * rhs.real,
-            }
+        // Original non-FMA implementation (reference)
+        //{
+        //    Complex {
+        //        real: self.real * rhs.real - self.imag * rhs.imag,
+        //        imag: self.real * rhs.imag + self.imag * rhs.real,
+        //    }
+        //}
+
+        // General FMA implementation
+        Complex {
+            real: self.real.mul_add(rhs.real, -(self.imag*rhs.imag)),
+            imag: self.real.mul_add(rhs.imag, self.imag*rhs.real)
         }
 
+        // CHECK
+        //    vmulps  ymm4, ymm1, ymm3
+        //    vfmsub231ps ymm4, ymm0, ymm2
+        //    vmulps  ymm1, ymm1, ymm2
+        //    vfmadd231ps ymm1, ymm0, ymm3
+        //    vmovaps ymmword, ptr, [rdi], ymm4
+        //    vmovaps ymmword, ptr, [rdi, +, 32], ymm1
+        //    vzeroupper
+        //    ret
+
+        // Inline assembly
+        //    vmulps  ymm4, ymm3, ymm1
+        //    vmulps  ymm5, ymm2, ymm1
+        //    vfmsub231ps ymm4, ymm2, ymm0
+        //    vfmadd231ps ymm5, ymm0, ymm3
+        //    vmovaps ymmword, ptr, [rdi], ymm4
+        //    vmovaps ymmword, ptr, [rdi, +, 32], ymm5
+        //    vzeroupper
+        //    ret
+
+
         // FMA implementation (f32x8 only)
+        /*
         #[cfg(not(feature = "double-precision"))]
         unsafe {
             let mut real: __m256;
@@ -359,6 +387,7 @@ impl Mul<&Complex> for &Complex {
 
             Complex { real: real.into(), imag: imag.into() }
         }
+        */
     }
 }
 
