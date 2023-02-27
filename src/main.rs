@@ -447,6 +447,12 @@ let γ_φ = {γ_φ};
     current_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
 
     //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
+
+    #[cfg(not(feature = "double-precision"))]
+    data_file.write_all(&(0u32.to_le_bytes())).unwrap();
+    #[cfg(feature="double-precision")]
+    data_file.write_all(&(1u32.to_le_bytes())).unwrap();
+
     data_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();

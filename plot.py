@@ -15,12 +15,19 @@ float_type = np.float32
 
 
 data_buffer = open(filename, "rb").read()
-data = np.frombuffer(data_buffer, float_type, offset=12)
-metadata = np.frombuffer(data_buffer, np.uint32, count=3)
+metadata = np.frombuffer(data_buffer, np.uint32, count=4)
 
-simulation_count = metadata[0]
-state_count = metadata[1]
-step_count = metadata[2]
+float_type_number = metadata[0]
+print("Found float precision: ", float_type_number)
+if float_type_number == 1:
+    float_type = np.float64
+
+data = np.frombuffer(data_buffer, float_type, offset=16)
+print(len(data))
+
+simulation_count = metadata[1]
+state_count = metadata[2]
+step_count = metadata[3]
 
 t = data[step_count*state_count:]
 data = np.reshape(data[0:step_count*state_count], (step_count, state_count))
