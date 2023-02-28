@@ -483,9 +483,9 @@ let γ_φ = {γ_φ};
         // S generator
         let mut S = SGenerator::new(&mut rng);
 
-        // sqrt(η) is from the definition of dZ.
-        // 1/sqrt(dt) is to make the variance σ = dt
-        let sqrtηdt = Real::splat(η.sqrt() * Δt.sqrt());
+        // sqrt(η/2) is from the definition of dZ.
+        // sqrt(dt) is to make the variance σ = dt
+        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt());
         println!("sqrtηdt: {sqrtηdt:?}");
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
