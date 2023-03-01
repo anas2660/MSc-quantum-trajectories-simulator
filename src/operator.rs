@@ -131,12 +131,11 @@ impl Operator {
 
     #[inline]
     pub fn lindblad(&mut self, ρ: &Operator, op: &Operator) -> &mut Operator {
-        let op_dag = op.dagger();
-        let op_dag_op = &op_dag * op;
+        let op_dag_op = op.daggered_mul(op);
 
         self.add(
-            &(op * ρ * &op_dag
-                - 0.5 * (&op_dag_op * ρ + ρ * &op_dag_op))
+            &(op * ρ.mul_daggered(op)
+                - 0.5 * (op_dag_op * ρ + ρ * op_dag_op))
         )
     }
 

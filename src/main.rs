@@ -88,7 +88,7 @@ struct QubitSystem {
     dZ: Complex,
 }
 
-#[inline]
+#[inline(always)]
 fn commutator(a: &Operator, b: &Operator) -> Operator {
     a*b - b*a
 }
@@ -317,9 +317,9 @@ impl QubitSystem {
     }
 
     fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
-        #[inline]
+        #[inline(always)]
         fn Hcalρ(r: &Operator, ρ: &Operator) -> Operator {
-            let c = r*ρ + ρ*r.dagger();
+            let c = r*ρ + ρ.mul_daggered(r);
             c - c.trace()*ρ
         }
         [
