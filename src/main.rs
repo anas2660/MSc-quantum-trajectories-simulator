@@ -88,7 +88,6 @@ struct QubitSystem {
     dZ: Complex,
 }
 
-
 #[inline]
 fn commutator(a: &Operator, b: &Operator) -> Operator {
     a*b - b*a
@@ -98,7 +97,6 @@ fn commutator(a: &Operator, b: &Operator) -> Operator {
 fn anticommutator(a: Operator, b: Operator) -> Operator {
     &(a * b) + &(b * a)
 }
-
 
 macro_rules! alloc_zero {
     ($T: ty) => {
@@ -215,7 +213,6 @@ impl QubitSystem {
         //const hbar: fp = 0.00000000000000000000000000000000010545718;
         //let H = H*hbar;
 
-
         // Construct initial state
         let p_sum = initial_probabilities.iter().fold(0.0, |acc, x| acc+x);
         let ψ = Matrix::vector(&initial_probabilities.map(|p| (p/p_sum).sqrt() ));
@@ -262,12 +259,13 @@ impl QubitSystem {
 
     fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
         *commutator(H, ρ)
-                .scale(&MINUS_I)
-                ////+ self.lindblad(a)
-                .lindblad(ρ, &self.c1) // Photon field transmission/losses
-                //.lindblad(ρ, &self.c2) // Decay to ground state
-                .lindblad(ρ, &self.c3[0]).lindblad(ρ, &self.c3[1])
-                .lindblad(ρ, &self.c_out_phased) // c_out
+            .scale(&MINUS_I)
+            ////+ self.lindblad(a)
+            .lindblad(ρ, &self.c1)   // Photon field transmission/losses
+            //.lindblad(ρ, &self.c2) // Decay to ground state
+            .lindblad(ρ, &self.c3[0])
+            .lindblad(ρ, &self.c3[1])
+            .lindblad(ρ, &self.c_out_phased) // c_out
     }
 
     fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Complex; 2]) {
@@ -318,7 +316,6 @@ impl QubitSystem {
         //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
     }
 
-
     fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
         #[inline]
         fn Hcalρ(r: &Operator, ρ: &Operator) -> Operator {
@@ -354,34 +351,30 @@ impl QubitSystem {
     }
 
     fn srk2v2(&mut self, H: &Operator, S: [SV32; 2]) {
-
-        //let a = |ρ| { self.deterministic(H, ρ) };
-        //let b = |ρ| { self.stochastic2(H, ρ) };
-
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
 
         let sqrtΔt = Real::splat(Δt.sqrt());
 
-        let S1f = convert_sv32_to_real(S[0]);
-        let S2f = convert_sv32_to_real(S[1]);
+        let S = S.map(convert_sv32_to_real);
 
-        let ctx = S1f * sqrtΔt;
-        let cty = S2f * sqrtΔt;
+        let offset = S.map(|s| s * sqrtΔt);
 
         let bt = self.stochastic2(H, &self.ρ);
         let K1 = Δt * self.deterministic(H, &self.ρ)
-            + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
+            + (ΔWx - offset[0]) * bt[0]
+            + (ΔWy - offset[1]) * bt[1];
 
         let mut new_ρ = self.ρ + K1;
         new_ρ.normalize();
+
         let bt = self.stochastic2(H, &new_ρ);
-        let K2 = Δt*self.deterministic(H, &new_ρ)
-            + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
+        let K2 = Δt * self.deterministic(H, &new_ρ)
+            + (ΔWx + offset[0]) * bt[0]
+            + (ΔWy + offset[1]) * bt[1];
 
-        self.ρ += 0.5*(K1+K2);
+        self.ρ += 0.5 * (K1 + K2);
     }
-
 
     //fn euler(&mut self, H: &Operator) {
     //    let a = self.deterministic(H, &self.ρ);
@@ -401,8 +394,6 @@ impl QubitSystem {
     //fn euler(&mut self, H: &Operator) {
     //    self.ρ += self.dv(H, &self.ρ).0 * Δt;
     //}
-
-
 }
 
 fn simulate() {
@@ -648,7 +639,6 @@ let γ_φ = {γ_φ};
         }
     }
     hist_file.write_all(&buffer).unwrap();
-
 }
 
 fn bloch_vector(rho: &Operator) -> [fp; 3] {
@@ -675,5 +665,4 @@ fn main() {
         (1000*SIMULATION_COUNT*Real::LANES as u32) as fp / elapsed as fp,
         (1000*SIMULATION_COUNT as u64 * STEP_COUNT as u64 * Real::LANES as u64) as u128 / elapsed
     );
-
 }
