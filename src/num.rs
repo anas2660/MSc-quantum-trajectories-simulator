@@ -178,9 +178,22 @@ impl Complex {
 
         Complex {
             real: self.real.mul_add(to_mul.real, self.imag.mul_add(-to_mul.imag, to_add.real)),
-            imag: self.real.mul_add(to_mul.imag, self.imag.mul_add(to_mul.real, to_add.imag))
+            imag: self.real.mul_add(to_mul.imag, self.imag.mul_add( to_mul.real, to_add.imag))
         }
     }
+
+    #[inline]
+    pub fn mul_daggered_add(self, to_mul: Self, to_add: Self) -> Self {
+        // For (a + bi)(c - di) + (e + fi) we get
+        // real: ac + bd + e
+        // imag: bc - ad + f
+
+        Complex {
+            real: self.real.mul_add(to_mul.real, self.imag.mul_add( to_mul.imag, to_add.real)),
+            imag: self.imag.mul_add(to_mul.real, self.real.mul_add(-to_mul.imag, to_add.imag))
+        }
+    }
+
 }
 
 impl Display for Complex {
