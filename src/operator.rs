@@ -212,7 +212,7 @@ impl Operator {
 
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                result.elements[y][x] = self.elements[y][0] * rhs.elements[x][0];
+                result.elements[y][x] = self.elements[y][0].mul_daggered(rhs.elements[x][0]);
                 for id in 1..Operator::SIZE {
                     result.elements[y][x] = self.elements[y][id].mul_daggered_add(rhs.elements[x][id], result.elements[y][x])
                 }
@@ -228,10 +228,10 @@ impl Operator {
 
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                result.elements[y][x] = self.elements[0][y] * rhs.elements[0][x];
+                result.elements[y][x] = self.elements[0][y].daggered_mul(rhs.elements[0][x]);
             }
-
         }
+
         for id in 1..Operator::SIZE {
             for y in 0..Operator::SIZE {
                 for x in 0..Operator::SIZE {
