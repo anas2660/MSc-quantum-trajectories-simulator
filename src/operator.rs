@@ -234,13 +234,28 @@ impl Mul<&Operator> for &Operator {
 
     #[inline]
     fn mul(self, rhs: &Operator) -> Self::Output {
-        let mem: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
-        let mut result = unsafe {mem.assume_init()};
+        // Seems slightly slower (than reference) at 4x4.
+        //self.mul_transposed(&rhs.transpose())
 
+        let mut result = Operator::uninitialized();
+
+        // Reference
+        //for y in 0..Operator::SIZE {
+        //    for x in 0..Operator::SIZE {
+        //        result.elements[y][x] = self.elements[y][0] * rhs.elements[0][x];
+        //        for id in 1..Operator::SIZE {
+        //            result.elements[y][x] = self.elements[y][id].mul_add(rhs.elements[id][x], result.elements[y][x])
+        //        }
+        //    }
+        //}
+
+        // This is faster (at least at 4x4, measured 3-4% total runtime speedup).
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
                 result.elements[y][x] = self.elements[y][0] * rhs.elements[0][x];
-                for id in 1..Operator::SIZE {
+            }
+            for id in 1..Operator::SIZE {
+                for x in 0..Operator::SIZE {
                     result.elements[y][x] = self.elements[y][id].mul_add(rhs.elements[id][x], result.elements[y][x])
                 }
             }
