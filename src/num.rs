@@ -161,6 +161,14 @@ impl Complex {
         self
     }
 
+    #[inline]
+    pub fn inverse(self) -> Self {
+        let denom = V::splat(1.0)/(self.real.mul_add(self.real, self.imag * self.imag));
+        Complex {
+            real:  self.real * denom,
+            imag: -self.imag * denom,
+        }
+    }
 }
 
 impl Display for Complex {
@@ -299,11 +307,10 @@ impl Div<&Complex> for &Complex {
 
     #[inline]
     fn div(self, rhs: &Complex) -> Self::Output {
-        // TODO: FMA
-        let denum = rhs.real * rhs.real + rhs.imag * rhs.imag;
+        let denom = V::splat(1.0)/rhs.real.mul_add(rhs.real, rhs.imag * rhs.imag);
         Complex {
-            real: (self.real * rhs.real + self.imag * rhs.imag) / denum,
-            imag: (self.imag * rhs.real - self.real * rhs.imag) / denum,
+            real: (self.real.mul_add(rhs.real,  self.imag * rhs.imag)) * denom,
+            imag: (self.imag.mul_add(rhs.real, -self.real * rhs.imag)) * denom,
         }
     }
 }
@@ -321,10 +328,10 @@ impl Div<&Complex> for fp {
 
     #[inline]
     fn div(self, rhs: &Complex) -> Self::Output {
-        let denum = rhs.real * rhs.real + rhs.imag * rhs.imag;
+        let denom = V::splat(self)/(rhs.real.mul_add(rhs.real, rhs.imag * rhs.imag));
         Complex {
-            real: V::splat(self) * rhs.real / denum,
-            imag: -V::splat(self) * rhs.imag / denum,
+            real:  rhs.real * denom,
+            imag: -rhs.imag * denom,
         }
     }
 }

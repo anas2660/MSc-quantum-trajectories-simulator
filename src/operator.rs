@@ -149,10 +149,10 @@ impl Operator {
 
     #[inline]
     pub fn normalize(&mut self) -> &Self {
-        let trace = self.trace();
+        let inverse_trace = self.trace().inverse();
         for i in 0..Operator::SIZE {
             for j in 0..Operator::SIZE {
-                self.elements[i][j] /= &trace;
+                self.elements[i][j] *= &inverse_trace;
             }
         }
         self
