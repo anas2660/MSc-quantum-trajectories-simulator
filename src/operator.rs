@@ -190,6 +190,21 @@ impl Operator {
         result
     }
 
+    #[inline]
+    pub fn mul_transposed(&self, rhs: &Operator) -> Operator {
+        let mut result = Operator::uninitialized();
+
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] = self.elements[y][0] * rhs.elements[x][0];
+                for id in 1..Operator::SIZE {
+                    result.elements[y][x] = self.elements[y][id].mul_add(rhs.elements[x][id], result.elements[y][x])
+                }
+            }
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
