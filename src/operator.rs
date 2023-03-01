@@ -17,10 +17,16 @@ impl Operator {
     pub const SIZE: usize = 1 << Operator::QUBIT_COUNT;
     //pub const IDENTITY: Self = Operator::identity();
 
+    #[inline(always)]
     pub fn zero() -> Self {
         unsafe { std::mem::MaybeUninit::zeroed().assume_init() }
     }
 
+    #[inline(always)]
+    fn uninitialized() -> Self {
+        let mem: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        unsafe { mem.assume_init() }
+    }
 
     pub fn identity() -> Self {
         let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
@@ -45,25 +51,19 @@ impl Operator {
     }
 
     pub fn from_fn<F: Fn(usize, usize) -> Complex>(f: F) -> Self {
-        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        let mut result = Operator::uninitialized();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = f(y, x) };
+                result.elements[y][x] = f(y, x);
             }
         }
-        unsafe { result.assume_init() }
+        result
     }
 
     //pub fn from_partial_diagonal(diag: &[Complex]) -> Self {
     //    assert_eq!(diag.len(), Operator::SIZE);
     //    Operator::new(diag[0], Complex::from(0.), Complex::from(0.), diag[1])
     //}
-
-    #[inline(always)]
-    fn uninitialized() -> Self {
-        let mem: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
-        unsafe { mem.assume_init() }
-    }
 
     #[inline]
     pub fn transpose(&self) -> Self {
