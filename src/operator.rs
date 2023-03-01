@@ -29,14 +29,11 @@ impl Operator {
     }
 
     pub fn identity() -> Self {
-        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
-        for y in 0..Operator::SIZE {
-            for x in 0..Operator::SIZE {
-                unsafe { (*result.as_mut_ptr()).elements[y][x] = C!(((x == y) as u32) as fp) };
-            }
+        let mut result = Operator::zero();
+        for i in 0..Operator::SIZE {
+            result.elements[i][i] = Complex::new(1.0, 0.0);
         }
-
-        unsafe { result.assume_init() }
+        result
     }
 
     pub fn new(r0: &[Complex], r1: &[Complex], r2: &[Complex], r3: &[Complex]) -> Self {
