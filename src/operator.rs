@@ -522,8 +522,6 @@ impl StateProbabilitiesSimd {
         }
         result
     }
-
-
 }
 
 impl StateProbabilities {

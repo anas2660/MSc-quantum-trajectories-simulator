@@ -358,7 +358,7 @@ impl QubitSystem {
 
         let S = S.map(convert_sv32_to_real);
 
-        let offset = S.map(|s| s * sqrtΔt);
+        let offset = S.map(|s| s * sqrtΔt );
 
         let bt = self.stochastic2(H, &self.ρ);
         let K1 = Δt * self.deterministic(H, &self.ρ)
@@ -550,12 +550,6 @@ let γ_φ = {γ_φ};
                 //println!("trace(rho) = {}", system.ρ.trace());
 
                 // Compute current.
-                // Original dW implementation reference
-                // const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
-                // J += Complex {
-                //     real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[0],
-                //     imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dW[1]
-                // };
                 // FIXME: Fix this, missing factor i think.
                 const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
                 J += Complex {
