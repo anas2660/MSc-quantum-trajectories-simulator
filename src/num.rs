@@ -1,4 +1,4 @@
-use std::{ops::{DivAssign, Neg}, simd::StdFloat};
+use std::{ops::{DivAssign, Neg}, simd::StdFloat, arch::x86_64::_mm256_cvtepi32_ps};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -9,12 +9,15 @@ use std::{
     ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
 };
 
+// There's a crate to do this multiple cfg thing, cfg-if
 #[cfg(not(feature = "double-precision"))]
 pub type V = std::simd::f32x8;
 #[cfg(not(feature = "double-precision"))]
 pub type UV = std::simd::u32x8;
 #[cfg(not(feature = "double-precision"))]
 pub type SV = std::simd::i32x8;
+#[cfg(not(feature = "double-precision"))]
+pub type SV32 = std::simd::i32x8;
 #[cfg(not(feature = "double-precision"))]
 pub type Real = V;
 #[cfg(not(feature = "double-precision"))]
@@ -39,6 +42,8 @@ pub type UV = std::simd::u64x4;
 #[cfg(feature = "double-precision")]
 pub type SV = std::simd::i64x4;
 #[cfg(feature = "double-precision")]
+pub type SV32 = std::simd::i32x4;
+#[cfg(feature = "double-precision")]
 pub type Real = V;
 #[cfg(feature = "double-precision")]
 #[allow(non_camel_case_types)]
@@ -54,6 +59,14 @@ pub type Int = i64;
 pub const SQRT_2:        fp = std::f64::consts::SQRT_2;
 #[cfg(feature = "double-precision")]
 pub const FRAC_1_SQRT_2: fp = std::f64::consts::FRAC_1_SQRT_2;
+
+#[inline(always)]
+pub fn convert_sv32_to_real(sv32: SV32) -> Real {
+    #[cfg(not(feature="double-precision"))]
+    unsafe { _mm256_cvtepi32_ps(sv32.into()).into() }
+    #[cfg(feature="double-precision")]
+    unsafe { _mm256_cvtepi32_pd(sv32.into()).into() }
+}
 
 
 #[derive(Debug, Clone, Copy)]

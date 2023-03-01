@@ -353,25 +353,32 @@ impl QubitSystem {
             + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
     }
 
-    fn srk2v2(&mut self, H: &Operator, S: [i32; 2]) {
+    fn srk2v2(&mut self, H: &Operator, S: [SV32; 2]) {
 
-        let a = |ρ| { self.deterministic(H, ρ) };
-        let b = |ρ| { self.stochastic2(H, ρ) };
+        //let a = |ρ| { self.deterministic(H, ρ) };
+        //let b = |ρ| { self.stochastic2(H, ρ) };
 
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
 
-        let bt = b(&self.ρ);
-        let sqrtΔt = Δt.sqrt();
-        let ctx = Real::splat((S[0] as fp) * sqrtΔt);
-        let cty = Real::splat((S[1] as fp) * sqrtΔt);
+        let sqrtΔt = Real::splat(Δt.sqrt());
 
-        let K1 = Δt*a(&self.ρ) + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
+        let S1f = convert_sv32_to_real(S[0]);
+        let S2f = convert_sv32_to_real(S[1]);
+
+        let ctx = S1f * sqrtΔt;
+        let cty = S2f * sqrtΔt;
+
+        let bt = self.stochastic2(H, &self.ρ);
+        let K1 = Δt * self.deterministic(H, &self.ρ)
+            + (ΔWx - ctx) * bt[0] + (ΔWy - cty) * bt[1];
 
         let mut new_ρ = self.ρ + K1;
         new_ρ.normalize();
-        let bt = b(&new_ρ);
-        let K2 = Δt*a(&new_ρ) + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
+        let bt = self.stochastic2(H, &new_ρ);
+        let K2 = Δt*self.deterministic(H, &new_ρ)
+            + (ΔWx + ctx) * bt[0] + (ΔWy + cty) * bt[1];
+
         self.ρ += 0.5*(K1+K2);
     }
 
