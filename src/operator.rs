@@ -59,17 +59,22 @@ impl Operator {
     //    Operator::new(diag[0], Complex::from(0.), Complex::from(0.), diag[1])
     //}
 
+    #[inline(always)]
+    fn uninitialized() -> Self {
+        let mem: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        unsafe { mem.assume_init() }
+    }
+
     #[inline]
     pub fn transpose(&self) -> Self {
-        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        let mut result = Operator::uninitialized();
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe {
-                    (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y];
-                }
+                result.elements[y][x] = self.elements[x][y];
+
             }
         }
-        unsafe { result.assume_init() }
+        result
     }
 
     #[inline]
@@ -85,15 +90,15 @@ impl Operator {
 
     #[inline]
     pub fn dagger(&self) -> Self {
-        let mut result: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        let mut result = Operator::uninitialized();
+
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                unsafe {
-                    (*result.as_mut_ptr()).elements[y][x] = self.elements[x][y].conjugate();
-                }
+                result.elements[y][x] = self.elements[x][y].conjugate();
             }
         }
-        unsafe { result.assume_init() }
+
+        result
     }
 
     #[inline]
