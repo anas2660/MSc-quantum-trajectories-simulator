@@ -217,11 +217,14 @@ impl Mul<&Operator> for &Operator {
 
     #[inline]
     fn mul(self, rhs: &Operator) -> Self::Output {
-        let mut result: Operator = unsafe { std::mem::zeroed() };
+        let mem: MaybeUninit<Operator> = std::mem::MaybeUninit::uninit();
+        let mut result = unsafe {mem.assume_init()};
+
         for y in 0..Operator::SIZE {
             for x in 0..Operator::SIZE {
-                for id in 0..Operator::SIZE {
-                    result.elements[y][x] += &self.elements[y][id] * &rhs.elements[id][x];
+                result.elements[y][x] = self.elements[y][0] * rhs.elements[0][x];
+                for id in 1..Operator::SIZE {
+                    result.elements[y][x] = self.elements[y][id].mul_add(rhs.elements[id][x], result.elements[y][x])
                 }
             }
         }
