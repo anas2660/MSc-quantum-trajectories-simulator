@@ -206,6 +206,26 @@ impl Complex {
         }
     }
 
+
+    #[inline]
+    pub fn mul_daggered(self, to_mul: Self) -> Self {
+        // For (a + bi)(c - di) we get (ac + bd) + i(bc - ad)
+
+        Complex {
+            real: self.real.mul_add(to_mul.real,  self.imag * to_mul.imag),
+            imag: self.imag.mul_add(to_mul.real, -self.real * to_mul.imag)
+        }
+    }
+
+    #[inline]
+    pub fn daggered_mul(self, to_mul: Self) -> Self {
+        // For (a - bi)(c + di) we get (ac + bd) + i(ad - bc)
+        Complex {
+            real: self.real.mul_add(to_mul.real,  self.imag * to_mul.imag),
+            imag: self.real.mul_add(to_mul.imag, -self.imag * to_mul.real)
+        }
+    }
+
 }
 
 impl Display for Complex {
