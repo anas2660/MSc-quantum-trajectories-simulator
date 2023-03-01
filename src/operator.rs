@@ -205,6 +205,43 @@ impl Operator {
         result
     }
 
+    // Dagger on rhs.
+    #[inline]
+    pub fn mul_daggered(&self, rhs: &Operator) -> Operator {
+        let mut result = Operator::uninitialized();
+
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] = self.elements[y][0] * rhs.elements[x][0];
+                for id in 1..Operator::SIZE {
+                    result.elements[y][x] = self.elements[y][id].mul_daggered_add(rhs.elements[x][id], result.elements[y][x])
+                }
+            }
+        }
+        result
+    }
+
+    // Dagger on lhs.
+    #[inline]
+    pub fn daggered_mul(&self, rhs: &Operator) -> Operator {
+        let mut result = Operator::uninitialized();
+
+        for y in 0..Operator::SIZE {
+            for x in 0..Operator::SIZE {
+                result.elements[y][x] = self.elements[0][y] * rhs.elements[0][x];
+            }
+
+        }
+        for id in 1..Operator::SIZE {
+            for y in 0..Operator::SIZE {
+                for x in 0..Operator::SIZE {
+                    result.elements[y][x] = self.elements[id][y].daggered_mul_add(rhs.elements[id][x], result.elements[y][x])
+                }
+            }
+        }
+        result
+    }
+
 }
 
 impl Display for Operator {
