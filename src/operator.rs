@@ -4,7 +4,7 @@ use std::{
     ops::{Add, AddAssign, Div, Index, Mul, Sub},
 };
 
-use crate::num::*;
+use crate::{num::*, lindblad::Lindblad};
 
 
 #[derive(Debug, Clone, Copy)]
@@ -130,12 +130,10 @@ impl Operator {
     }
 
     #[inline]
-    pub fn lindblad(&mut self, ρ: &Operator, op: &Operator) -> &mut Operator {
-        let op_dag_op = op.daggered_mul(op);
-
+    pub fn lindblad(&mut self, ρ: &Operator, op: &Lindblad) -> &mut Operator {
         self.add(
-            &(op * ρ.mul_daggered(op)
-                - 0.5 * (op_dag_op * ρ + ρ * op_dag_op))
+            &(op.c * ρ.mul_daggered(&op.c)
+                - 0.5 * (&op.c_dag_c * ρ + ρ * &op.c_dag_c))
         )
     }
 

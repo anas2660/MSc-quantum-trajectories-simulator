@@ -14,6 +14,8 @@ mod histogram;
 use histogram::*;
 mod hamiltonian;
 use hamiltonian::*;
+mod lindblad;
+use lindblad::*;
 mod sgenerator;
 use sgenerator::*;
 
@@ -79,12 +81,12 @@ struct QubitSystem {
     Y: cfp,
     //t: fp
     sqrt_η: fp,
-    c_out_phased: Operator,
+    c_out_phased: Lindblad,
     dχρ: Operator,
     measurement: Operator,
-    c1: Operator,
-    c2: Operator,
-    c3: [Operator; 2],
+    c1: Lindblad,
+    c2: Lindblad,
+    c3: [Lindblad; 2],
     dZ: Complex,
 }
 
@@ -220,13 +222,13 @@ impl QubitSystem {
         println!("Initial ρ:\n{ρ}");
 
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
-        let c1 = (2.0 * κ).sqrt() * a;
-        let c2 = apply_individually(&(γ_dec.sqrt() * &σ_minus));
-        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z));
+        let c_out_phased = Lindblad::new(c_out * ((I * Φ).exp()));
+        let c1 = Lindblad::new((2.0 * κ).sqrt() * a);
+        let c2 = Lindblad::new(apply_individually(&(γ_dec.sqrt() * &σ_minus)));
+        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(|p| Lindblad::new(p));
 
         let sqrt_η = η.sqrt();
-        let c_out_phased = c_out * ((I * Φ).exp());
-        let dχρ = sqrt_η * (c_out_phased + c_out_phased.adjoint());
+        let dχρ = sqrt_η * (c_out_phased.c + c_out_phased.c.adjoint());
 
         println!("H:\n{H}");
 
@@ -269,7 +271,7 @@ impl QubitSystem {
     }
 
     fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Complex; 2]) {
-        let cop = &self.c_out_phased;
+        let cop = &self.c_out_phased.c;
         let cop_dagger = cop.dagger();
 
         let u = [ρ * cop_dagger, cop*ρ];
@@ -323,8 +325,8 @@ impl QubitSystem {
             c - c.trace()*ρ
         }
         [
-            FRAC_1_SQRT_2*Hcalρ(&self.c_out_phased, ρ),
-            FRAC_1_SQRT_2*Hcalρ(&(MINUS_I*self.c_out_phased), ρ)
+            FRAC_1_SQRT_2*Hcalρ(&self.c_out_phased.c, ρ),
+            FRAC_1_SQRT_2*Hcalρ(&(MINUS_I*self.c_out_phased.c), ρ)
         ]
     }
 
@@ -481,7 +483,7 @@ let γ_φ = {γ_φ};
 
             let mut t = Δt;
 
-            let c = system.c_out_phased;
+            let c = system.c_out_phased.c;
             let x = c + c.dagger();
             let y = MINUS_I*(c - c.dagger());
 
