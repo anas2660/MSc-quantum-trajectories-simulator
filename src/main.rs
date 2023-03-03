@@ -180,19 +180,21 @@ impl QubitSystem {
         let N = a.dagger() * a;
 
         // Hamiltonian
-        let factors: [Operator; Operator::QUBIT_COUNT] = Δ_b.zip(χ).map(|(Δ_bs, χ_s)| {
-            //0.5*(1.0/Δ_bs)*identity +
-            χ_s*N
-        });
+        let term2 = apply_and_scale_individually(Δ_b.zip(χ).map(|(Δ_bs, χ_s)| 0.5*Δ_bs*identity + χ_s*N ), &σ_z);
 
-        let sum_σ_minus = apply_individually(&σ_minus);
-        let term3 = apply_individually_parts(&σ_plus).iter().zip(χ).fold(Operator::zero(), |sum, (σ_ps, χ_s)| {
-            sum + χ_s * σ_ps * sum_σ_minus
-        });
+        let mut term3 = Operator::zero();
 
-        let H = Δ_br * N
-            + apply_and_scale_individually(factors, &σ_z)
-            + term3
+        let σ_m = apply_individually_parts(&σ_minus);
+        let σ_p = apply_individually_parts(&σ_plus);
+
+        for s in 0..Operator::QUBIT_COUNT {
+            for q in 0..Operator::QUBIT_COUNT {
+                let c = χ[s] * (g[q]/g[s]);
+                term3 += c * σ_p[s] * σ_m[q] + c * σ_p[q] * σ_m[s];
+            }
+        }
+
+        let H = Δ_br * N + term2 + term3
             + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
             //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
             //+ (N + 0.5*identity) * χσ_z
