@@ -1,4 +1,4 @@
-use std::{ops::{DivAssign, Neg}, simd::StdFloat, arch::x86_64::_mm256_cvtepi32_ps};
+use std::{ops::{DivAssign, Neg}, simd::StdFloat, arch::x86_64::{_mm256_cvtepi32_ps, _mm256_cvtepi32_pd}};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -75,6 +75,13 @@ pub struct Complex {
     pub imag: Real,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ShallowComplex {
+    pub real: f64,
+    pub imag: f64,
+}
+
+
 //pub const ZERO: Complex = C!(0.0);
 
 macro_rules! C {
@@ -92,6 +99,23 @@ macro_rules! C {
     };
 }
 pub(crate) use C;
+
+macro_rules! SC {
+    ($real: expr) => {
+        //#[cfg(features="double-precision")]
+        ShallowComplex { real: $real, imag: 0.0 }
+        //#[cfg(not(features="double-precision"))]
+        //ShallowComplex { real: $real as f64, imag: 0.0 }
+    };
+    ($real: expr, $imag: expr) => {
+        ShallowComplex {
+            real: $real,
+            imag: $imag,
+        }
+    };
+}
+pub(crate) use SC;
+
 
 
 impl Complex {
@@ -274,6 +298,20 @@ impl Add<&Complex> for &Complex {
         }
     }
 }
+
+
+impl Add<ShallowComplex> for ShallowComplex {
+    type Output = ShallowComplex;
+
+    #[inline]
+    fn add(self, rhs: ShallowComplex) -> Self::Output {
+        ShallowComplex {
+            real: self.real + rhs.real,
+            imag: self.imag + rhs.imag,
+        }
+    }
+}
+
 
 impl Add for Complex {
     type Output = Complex;
@@ -465,6 +503,22 @@ impl Mul<&Complex> for &Complex {
             Complex { real: real.into(), imag: imag.into() }
         }
         */
+    }
+}
+
+
+
+impl Mul<&ShallowComplex> for &ShallowComplex {
+    type Output = ShallowComplex;
+
+    #[inline(always)]
+    fn mul(self, rhs: &ShallowComplex) -> Self::Output {
+        {
+            ShallowComplex {
+                real: self.real * rhs.real - self.imag * rhs.imag,
+                imag: self.real * rhs.imag + self.imag * rhs.real,
+            }
+        }
     }
 }
 

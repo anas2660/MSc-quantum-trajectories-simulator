@@ -9,7 +9,7 @@ use crate::{num::*, lindblad::Lindblad};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Operator {
-    elements: [[Complex; 4]; 4],
+    pub elements: [[Complex; 4]; 4],
 }
 
 impl Operator {
