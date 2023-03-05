@@ -227,7 +227,7 @@ impl QubitSystem {
         let c_out_phased = Lindblad::new(c_out * ((I * Φ).exp()));
         let c1 = Lindblad::new((2.0 * κ).sqrt() * a);
         let c2 = Lindblad::new(apply_individually(&(γ_dec.sqrt() * &σ_minus)));
-        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(|p| Lindblad::new(p));
+        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(Lindblad::new);
 
         let sqrt_η = η.sqrt();
         let dχρ = sqrt_η * (c_out_phased.c + c_out_phased.c.adjoint());
