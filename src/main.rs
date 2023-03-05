@@ -143,6 +143,30 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 }
 
 
+fn solve_analytically(H: &Matrix) -> Operator {
+    let mut current_Δt = Δt as f64;
+
+    for attempt in 1..32 {
+        println!("attempt {attempt}");
+        println!("current Δt {current_Δt}");
+        let result = (SC!(0.0,-current_Δt)*H).budget_matrix_exponential();
+        if let Ok(result) = result  {
+            println!("Ok(result) = \n{}", result);
+            return result.pow(1<<attempt).to_operator();
+        }
+
+        match result {
+            Ok(_) => (),
+            Err(max) => println!("Max was {max}"),
+        }
+
+        current_Δt /= 2.0;
+    }
+
+    panic!("Insufficient precision in matrix exponential when solving analytically!");
+}
+
+
 impl QubitSystem {
 
     fn new() -> (Self, QuantumCircuit) {
