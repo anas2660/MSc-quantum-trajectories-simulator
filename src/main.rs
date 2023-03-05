@@ -502,7 +502,7 @@ let γ_φ = {γ_φ};
 
         // sqrt(η/2) is from the definition of dZ.
         // sqrt(dt) is to make the variance σ = dt
-        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt());
+        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * 1000000.0);
         println!("sqrtηdt: {sqrtηdt:?}");
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
