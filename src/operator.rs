@@ -1,7 +1,7 @@
 use std::{
     fmt::Display,
     mem::MaybeUninit,
-    ops::{Add, AddAssign, Div, Index, Mul, Sub},
+    ops::{Add, AddAssign, Div, Index, Mul, Sub}, simd::SimdFloat,
 };
 
 use crate::{num::*, lindblad::Lindblad};
@@ -265,6 +265,40 @@ impl Operator {
         result
     }
 
+    pub fn max_abs(&self) -> (fp, fp) {
+        let (mut max_real, mut max_imag) = (fp::MIN, fp::MIN);
+        println!("self {}", self);
+        for i in 0..Operator::SIZE {
+            for j in 0..Operator::SIZE {
+                if self[(i,j)].real[0].abs() > max_real {
+                    max_real = self[(i,j)].real[0].abs();
+                    println!("newmax real {}\n", max_real);
+                }
+                if self[(i,j)].imag[0].abs() > max_imag {
+                    max_imag = self[(i,j)].imag[0].abs();
+                }
+            }
+        }
+        (max_real, max_imag)
+    }
+
+    pub fn budget_matrix_exponential(&self) -> Result<Operator, fp> {
+        let mut result = Operator::identity();
+        let mut tmp = Operator::identity();
+        for i in 1..16 {
+            tmp = Operator::identity();
+            for n in 1..=i {
+                tmp = tmp * ((1.0/(n as fp)) * self);
+            }
+            result += tmp;
+        }
+
+        // Converge check
+        let max = tmp.max_abs();
+        let max = max.0.max(max.1);
+        println!("MAX {max}");
+        if max > 1.0e-30 || result[(0,0)].first().0.is_nan() { Err(max) } else { Ok(result) }
+    }
 }
 
 impl Display for Operator {
