@@ -33,7 +33,7 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const initial_probabilities: [fp; Operator::SIZE] = [
+const initial_probabilities: [f64; Operator::SIZE] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
@@ -41,42 +41,46 @@ const initial_probabilities: [fp; Operator::SIZE] = [
     0.25, // 00
     0.24, // 01
     0.34, // 10
-    0.15  // 11
+    0.15, // 11
 ];
 
 // Simulation constants
-const Δt: fp = 0.03;
-const STEP_COUNT: u32 = 30000;
-const THREAD_COUNT: u32 = 10;
-const HIST_BIN_COUNT: usize = 64;
-const SIMULATIONS_PER_THREAD: u32 = 5;
+pub const Δt: fp = 0.01;
+const STEP_COUNT: u32 = 20000;
+const THREAD_COUNT: u32 = 8;
+const HIST_BIN_COUNT: usize = 32;
+const SIMULATIONS_PER_THREAD: u32 = 2;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
-const κ:     fp = 1.2;
-const κ_1:   fp = 1.0; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β:    cfp = Complex::new(40.0000, 0.0); // Max value is kappa
-const γ_dec: fp = 563.9773943; // should be g^2/ω    (174) side 49
-const η:     fp = 0.95;
-const Φ:     fp = 0.0; // c_out phase shift Phi
-const γ_φ:   fp = 0.001;
+const κ: fp = 1.2;
+const κ_1: fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β: cfp = Complex::new(100.0000, 0.0); // Max value is kappa
+const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
+const η: fp = 0.95;
+const Φ: fp = 0.0; // c_out phase shift Phi
+const γ_φ: f64 = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0:   fp = 0.6;
-const g_0:   fp = 125.6637061435917; // sqrt(Δ_s_0 χ)
-const ω_r:   fp = 28368.582/1000.0;
-const ω_s_0: fp = 2049.6365/1000.0;
+const χ_0: fp = 0.6;
+const g_0: fp = 125.663706144; // sqrt(Δ_s_0 χ)
+const ω_r: fp = 28368.582;
+const ω_s_0: fp = 2049.6365;
 //const Δ_s_0: fp = 26318.94506957162;
 
-const ω_b:       fp = 0.1;
+const ω_b: fp = ω_s_0;
 //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-const Δ_b:  [fp; 2] = [ω_s_0+0., ω_s_0-0.]; //  ω_b - ω_s
-const Δ_br:      fp = ω_r; // ω_b - ω_r
-const Δ_r:       fp = ω_r;
-const χ:    [fp; 2] = [χ_0+0.02, χ_0-0.02];
-const g:    [fp; 2] = [g_0, g_0];
+const Δ_b: [fp; 2] = [0., 0.]; //  ω_b - ω_s
+const Δ_br: fp = ω_r-ω_b; // ω_b - ω_r
+const Δ_r: fp = ω_r;
+const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
+const g: [fp; 2] = [g_0, g_0];
+
+
+const inverse_Δt: fp = 1.0/Δt;
 
 #[derive(Clone)]
 struct QubitSystem {
+    Hp: [Operator; 2],
     ρ: Operator,
     Y: cfp,
     //t: fp
