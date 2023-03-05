@@ -214,9 +214,7 @@ impl QubitSystem {
         //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
 
         // Remove any non-hermitian numerical error
-        let the_non_hermitian_part = 0.5*(H.conjugate()-H);
-        let H = H+the_non_hermitian_part;
-        println!("THE NON HERMITIAN PART:\n{}", the_non_hermitian_part);
+        let H = 0.5*(H + H.conjugate());
 
         //const hbar: fp = 0.00000000000000000000000000000000010545718;
         //let H = H*hbar;
