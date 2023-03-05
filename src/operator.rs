@@ -138,6 +138,32 @@ impl Operator {
     }
 
     #[inline]
+    pub fn lindblad2(&mut self, ρ: &Operator, op: &Lindblad) -> &mut Operator {
+        //  2 L.L.ρ.Ld.Ld
+        // -2 L.ρ.Ld.(L.Ld+cdc)
+        // + cdc.cdc.ρ
+        // + cdc.ρ.cdc
+        // + complex_conjugate
+
+        let c = &op.c;
+        let cd = c.dagger();
+        let cdc = &op.c_dag_c;
+        let cρ = op.c * ρ;
+        let cdag = op.c.dagger();
+        let cdcd = cdag * cdag;
+        let cdcρ = cdc * ρ;
+
+        let part = (crate::Δt/800000.0)*(
+            2.0 * c * cρ * cdcd
+                - 2.0 * c * ρ * cd * (c * cd + *cdc)
+                + cdc * cdcρ
+                + cdcρ * cdc
+        );
+
+        self.add(&(part + part.conjugate()))
+    }
+
+    #[inline]
     pub fn trace(&self) -> Complex {
         let mut result = Complex::from(0.0);
         for i in 0..Operator::SIZE {
