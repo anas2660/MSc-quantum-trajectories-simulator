@@ -403,11 +403,11 @@ impl QubitSystem {
         self.ρ += 0.5 * (K1 + K2);
     }
 
-    //fn euler(&mut self, H: &Operator) {
-    //    let a = self.deterministic(H, &self.ρ);
-    //    let (b, b_prime) = self.stochastic(H, &self.ρ);
-    //    self.ρ += a * Δt + b;
-    //}
+    fn euler(&mut self, H: &Operator) {
+        let a = self.deterministic(H, &self.ρ);
+        let b = self.stochastic2(H, &self.ρ);
+        self.ρ += a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
+    }
 
     //fn runge_kutta(&mut self, H: &Operator) {
     //    let (k0, dY0) = self.dv(H, &self.ρ);
