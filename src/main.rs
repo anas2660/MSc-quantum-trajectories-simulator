@@ -347,15 +347,12 @@ impl QubitSystem {
     }
 
     fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
-        #[inline(always)]
-        fn Hcalρ(r: &Operator, ρ: &Operator) -> Operator {
-            let c = r*ρ + ρ.mul_daggered(r);
-            c - c.trace()*ρ
-        }
-        [
-            FRAC_1_SQRT_2*Hcalρ(&self.c_out_phased.c, ρ),
-            FRAC_1_SQRT_2*Hcalρ(&(MINUS_I*self.c_out_phased.c), ρ)
-        ]
+        let ρ_norm = *ρ.clone().normalize();
+        let r = self.c_out_phased.c;
+        let rρ = r*ρ*FRAC_1_SQRT_2;
+        let a1 = rρ - rρ.trace()*ρ_norm;
+        let a2 = a1.dagger();
+        [ a1+a2, I*(a2-a1) ]
     }
 
     fn srk2(&mut self, H: &Operator) {
