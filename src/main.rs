@@ -261,7 +261,7 @@ impl QubitSystem {
         println!("H:\n{H}");
 
         let omega = 1.0;
-        let hadamard_parts = apply_individually_parts(&((1.0/SQRT_2)*hadamard));
+        let hadamard_parts = apply_individually_parts(&((1.0/SQRT_2 as f64)*hadamard));
         let H1 = H + omega * hadamard_parts[0];
         let H2 = H + omega * hadamard_parts[1];
 
