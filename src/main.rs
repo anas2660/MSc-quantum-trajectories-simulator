@@ -402,8 +402,8 @@ impl QubitSystem {
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
 
-        let mut new_ρ = self.ρ + K1;
-        new_ρ.normalize();
+        let new_ρ = self.ρ + K1;
+        // new_ρ.normalize();
 
         let bt = self.stochastic2(H, &new_ρ);
         let K2 = Δt * self.deterministic(H, &new_ρ)
