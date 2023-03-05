@@ -270,8 +270,18 @@ impl QubitSystem {
             (H, Δt * (STEP_COUNT-1) as fp)
         ]);
 
+        // Solve analytically
+        let Hmat: Matrix = H.into();
+        let sol = solve_analytically(&Hmat);
+        let Hp = [ sol, sol.conjugate() ];
+
+        for (i, p) in Hp.iter().enumerate() {
+            println!("p{i}:\n{p}");
+        }
+
         (
             Self {
+                Hp,
                 ρ,
                 Y: ZERO,
                 sqrt_η,
@@ -288,14 +298,14 @@ impl QubitSystem {
     }
 
     fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
-        *commutator(H, ρ)
-            .scale(&MINUS_I)
+        *(self.Hp[0] * ρ * self.Hp[1] - *ρ).scale(inverse_Δt)
             ////+ self.lindblad(a)
             .lindblad(ρ, &self.c1)   // Photon field transmission/losses
             //.lindblad(ρ, &self.c2) // Decay to ground state
             .lindblad(ρ, &self.c3[0])
             .lindblad(ρ, &self.c3[1])
             .lindblad(ρ, &self.c_out_phased) // c_out
+            //.lindblad2(ρ, &self.c_out_phased)
     }
 
     fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Complex; 2]) {
