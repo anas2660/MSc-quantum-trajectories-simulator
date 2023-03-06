@@ -297,10 +297,14 @@ impl QubitSystem {
         )
     }
 
+    fn evolve(&self,  ρ: &Operator) -> Operator {
+        self.Hp[0] * ρ * self.Hp[1]
+    }
+
     fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
-        *(self.Hp[0] * ρ * self.Hp[1] - *ρ).scale(inverse_Δt)
+        *Operator::lindblad_term(ρ, &self.c1)
+            //lindblad(ρ, &self.c1)   // Photon field transmission/losses
             ////+ self.lindblad(a)
-            .lindblad(ρ, &self.c1)   // Photon field transmission/losses
             //.lindblad(ρ, &self.c2) // Decay to ground state
             .lindblad(ρ, &self.c3[0])
             .lindblad(ρ, &self.c3[1])
@@ -402,7 +406,7 @@ impl QubitSystem {
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
 
-        let new_ρ = self.ρ + K1;
+        let new_ρ = self.evolve(&self.ρ) + K1;
         // new_ρ.normalize();
 
         let bt = self.stochastic2(H, &new_ρ);
@@ -410,13 +414,13 @@ impl QubitSystem {
             + (ΔWx + offset[0]) * bt[0]
             + (ΔWy + offset[1]) * bt[1];
 
-        self.ρ += 0.5 * (K1 + K2);
+        self.ρ = self.evolve(&self.ρ) + 0.5 * (K1 + K2);
     }
 
     fn euler(&mut self, H: &Operator) {
         let a = self.deterministic(H, &self.ρ);
         let b = self.stochastic2(H, &self.ρ);
-        self.ρ += a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
+        self.ρ = self.evolve(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
     }
 
     //fn runge_kutta(&mut self, H: &Operator) {

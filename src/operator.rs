@@ -130,6 +130,11 @@ impl Operator {
     }
 
     #[inline]
+    pub fn lindblad_term(ρ: &Operator, op: &Lindblad) -> Operator {
+        op.c * ρ.mul_daggered(&op.c) - 0.5 * (op.c_dag_c * ρ + ρ * op.c_dag_c)
+    }
+
+    #[inline]
     pub fn lindblad(&mut self, ρ: &Operator, op: &Lindblad) -> &mut Operator {
         self.add(
             &(op.c * ρ.mul_daggered(&op.c)
