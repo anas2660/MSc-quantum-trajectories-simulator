@@ -297,6 +297,7 @@ impl QubitSystem {
         )
     }
 
+    #[inline]
     fn evolve(&self,  ρ: &Operator) -> Operator {
         self.Hp[0] * ρ * self.Hp[1]
     }
