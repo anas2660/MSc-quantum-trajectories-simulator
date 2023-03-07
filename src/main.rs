@@ -312,7 +312,7 @@ impl QubitSystem {
             //.lindblad2(ρ, &self.c_out_phased)
     }
 
-    fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
+    fn stochastic2(&self, ρ: &Operator) -> [Operator; 2] {
         let ρ_norm = *ρ.clone().normalize();
         let r = self.c_out_phased.c;
         let rρ = r*ρ*FRAC_1_SQRT_2;
@@ -331,7 +331,7 @@ impl QubitSystem {
 
         let offset = S.map(|s| s * sqrtΔt );
 
-        let bt = self.stochastic2(H, &self.ρ);
+        let bt = self.stochastic2(&self.ρ);
         let K1 = Δt * self.deterministic(H, &self.ρ)
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
@@ -339,7 +339,7 @@ impl QubitSystem {
         let new_ρ = self.evolve(&self.ρ) + K1;
         // new_ρ.normalize();
 
-        let bt = self.stochastic2(H, &new_ρ);
+        let bt = self.stochastic2(&new_ρ);
         let K2 = Δt * self.deterministic(H, &new_ρ)
             + (ΔWx + offset[0]) * bt[0]
             + (ΔWy + offset[1]) * bt[1];
@@ -349,7 +349,7 @@ impl QubitSystem {
 
     fn euler(&mut self, H: &Operator) {
         let a = self.deterministic(H, &self.ρ);
-        let b = self.stochastic2(H, &self.ρ);
+        let b = self.stochastic2(&self.ρ);
         self.ρ = self.evolve(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
     }
 
