@@ -337,7 +337,9 @@ impl QubitSystem {
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
 
-        let new_ρ = self.evolve(&self.ρ) + K1;
+        let evolved_ρ = self.evolve(&self.ρ);
+
+        let new_ρ = evolved_ρ + K1;
         // new_ρ.normalize();
 
         let bt = self.stochastic2(&new_ρ);
@@ -345,7 +347,7 @@ impl QubitSystem {
             + (ΔWx + offset[0]) * bt[0]
             + (ΔWy + offset[1]) * bt[1];
 
-        self.ρ = self.evolve(&self.ρ) + 0.5 * (K1 + K2);
+        self.ρ = evolved_ρ + 0.5 * (K1 + K2);
     }
 
     fn euler(&mut self, H: &Operator) {
