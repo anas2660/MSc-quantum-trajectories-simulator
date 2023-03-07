@@ -312,54 +312,6 @@ impl QubitSystem {
             //.lindblad2(ρ, &self.c_out_phased)
     }
 
-    fn stochastic(&self, H: &Operator, ρ: &Operator) -> ([Operator; 2], [Complex; 2]) {
-        let cop = &self.c_out_phased.c;
-        let cop_dagger = cop.dagger();
-
-        let u = [ρ * cop_dagger, cop*ρ];
-        let v = [-u[0].trace(), u[1].trace()];
-        let t = [v[0]*ρ + u[0], v[1]*ρ + u[1]];
-
-        let tp = [
-            v[0] - cop_dagger*(ρ.sub_identity()),
-            v[1] + (&u[1] - cop)
-        ];
-
-        (
-            [t[0]-t[1],   (t[0]+t[1]).mul_i()],
-            [
-                -((cop+&cop_dagger)*ρ).trace(),
-                I*((cop-&cop_dagger)*ρ).trace()
-            ]
-        )
-
-        //(
-        //    [t[0]-t[1],   (t[0]+t[1]).mul_i()],
-        //    [tp[0]-tp[1], (tp[0]+tp[1]).mul_i()]
-        //)
-    }
-
-    fn millstein(&mut self, H: &Operator) {
-        let a = self.deterministic(H, &self.ρ);
-        //let adt = self.runge_kutta(H);
-        let (b, b_prime) = self.stochastic(H, &self.ρ);
-        let ΔWx = self.dZ.real;
-        let ΔWy = self.dZ.imag;
-        let Δtv = V::splat(Δt);
-        self.ρ += a * Δt
-            + b[0]*ΔWx + 0.5*b[0]*b_prime[0]*(ΔWx*ΔWx - Δtv)
-            + b[1]*ΔWy + 0.5*b[1]*b_prime[1]*(ΔWy*ΔWy - Δtv)
-    }
-
-    fn runge_kutta(&self, H: &Operator) -> Operator {
-        let k0 = self.deterministic(H, &self.ρ);
-        let k1 = self.deterministic(H, (self.ρ + 0.5 * Δt * k0).normalize());
-        let k2 = self.deterministic(H, (self.ρ + 0.5 * Δt * k1).normalize());
-        let k3 = self.deterministic(H, (self.ρ + Δt * k2).normalize());
-        (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3))
-        //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
-    }
-
     fn stochastic2(&self, H: &Operator, ρ: &Operator) -> [Operator; 2] {
         let ρ_norm = *ρ.clone().normalize();
         let r = self.c_out_phased.c;
@@ -367,28 +319,6 @@ impl QubitSystem {
         let a1 = rρ - rρ.trace()*ρ_norm;
         let a2 = a1.dagger();
         [ a1+a2, I*(a2-a1) ]
-    }
-
-    fn srk2(&mut self, H: &Operator) {
-        let δ: fp = Δt;
-        let sqrtδ = δ.sqrt();
-        //let term1 = self.runge_kutta(H);
-        let ρ = &self.ρ;
-        let mut term1 = ρ + &(self.deterministic(H,ρ)*δ);
-        term1.normalize();
-        let b = self.stochastic2(H, ρ);
-        let mut ρcal = term1 + b[0]*sqrtδ + b[1]*sqrtδ;
-        let bcal = self.stochastic2(H, ρcal.normalize());
-
-        let ΔWx = self.dZ.real;
-        let ΔWy = self.dZ.imag;
-        //let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
-        let one_over_2sqrtδ = 1.0/(2.0*sqrtδ);
-        let δ = V::splat(δ);
-        self.ρ = term1
-            + (b[0]*ΔWx + b[1]*ΔWy)
-            + one_over_2sqrtδ*(bcal[0]-b[0])*(ΔWx*ΔWx - δ)
-            + one_over_2sqrtδ*(bcal[1]-b[1])*(ΔWy*ΔWy - δ)
     }
 
     fn srk2v2(&mut self, H: &Operator, S: [SV32; 2]) {
