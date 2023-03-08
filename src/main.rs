@@ -75,9 +75,6 @@ const Δ_r: fp = ω_r;
 const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
 const g: [fp; 2] = [g_0, g_0];
 
-
-const inverse_Δt: fp = 1.0/Δt;
-
 #[derive(Clone)]
 struct QubitSystem {
     Hp: [Operator; 2],
