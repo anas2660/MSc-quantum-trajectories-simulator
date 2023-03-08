@@ -38,44 +38,44 @@ const initial_probabilities: [f64; Operator::SIZE] = [
     //0.45, // 01
     //0.55, // 10
     //0.00  // 11
-    0.25, // 00
-    0.24, // 01
-    0.34, // 10
-    0.15, // 11
+    0.50, // 00
+    0.00, // 01
+    0.00, // 10
+    0.50, // 11
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.01;
-const STEP_COUNT: u32 = 20000;
-const THREAD_COUNT: u32 = 8;
-const HIST_BIN_COUNT: usize = 32;
-const SIMULATIONS_PER_THREAD: u32 = 2;
+pub const Δt: fp = 0.001;
+const STEP_COUNT: u32 = 5000;
+const THREAD_COUNT: u32 = 14;
+const HIST_BIN_COUNT: usize = 64;
+const SIMULATIONS_PER_THREAD: u32 = 50;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
 const κ: fp = 1.2;
 const κ_1: fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β: cfp = Complex::new(100.0000, 0.0); // Max value is kappa
+const β: cfp = Complex::new(1.0, 0.0); // Max value is kappa
 const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
 const η: fp = 0.95;
 const Φ: fp = 0.0; // c_out phase shift Phi
 const γ_φ: f64 = 0.001;
 //const ddelta: fp = delta_r - delta_s;
 const χ_0: fp = 0.6;
-const g_0: fp = 125.663706144; // sqrt(Δ_s_0 χ)
-const ω_r: fp = 28368.582;
-const ω_s_0: fp = 2049.6365;
+const g_0: fp = 24.5; // sqrt(Δ_s_0 χ)
+const ω_r: fp = 2500.0;
+const ω_s_0: fp = 3500.0;
 //const Δ_s_0: fp = 26318.94506957162;
 
-const ω_b: fp = ω_s_0;
+const ω_b: fp = ω_r;
 //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-const Δ_b: [fp; 2] = [0., 0.]; //  ω_b - ω_s
-const Δ_br: fp = ω_r-ω_b; // ω_b - ω_r
-const Δ_r: fp = ω_r;
+const Δ_b: [fp; 2] = [1000.0, 1000.0]; //  ω_b - ω_s
+const Δ_br: fp = 0.0; // ω_b - ω_r
+const Δ_r: fp = 0.0;
 const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
 const g: [fp; 2] = [g_0, g_0];
 
-const NOISE_FACTOR: fp = 1000000.0;
+const NOISE_FACTOR: fp = 1.0;
 
 #[derive(Clone)]
 struct QubitSystem {
