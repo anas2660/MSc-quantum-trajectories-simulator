@@ -75,6 +75,8 @@ const Δ_r: fp = ω_r;
 const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
 const g: [fp; 2] = [g_0, g_0];
 
+const NOISE_FACTOR: fp = 1000000.0;
+
 #[derive(Clone)]
 struct QubitSystem {
     Hp: [Operator; 2],
@@ -427,7 +429,7 @@ let γ_φ = {γ_φ};
 
         // sqrt(η/2) is from the definition of dZ.
         // sqrt(dt) is to make the variance σ = dt
-        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * 1000000.0);
+        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * NOISE_FACTOR);
         println!("sqrtηdt: {sqrtηdt:?}");
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
