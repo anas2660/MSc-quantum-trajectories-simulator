@@ -275,11 +275,7 @@ impl QubitSystem {
             Self {
                 Hp,
                 ρ,
-                Y: ZERO,
-                sqrt_η,
                 c_out_phased,
-                dχρ,
-                measurement: Operator::from_fn(|r, c| ONE * (r * c) as fp),
                 c1,
                 c2,
                 c3,
