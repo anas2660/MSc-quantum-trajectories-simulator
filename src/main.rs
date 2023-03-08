@@ -83,8 +83,6 @@ struct QubitSystem {
     //t: fp
     sqrt_η: fp,
     c_out_phased: Lindblad,
-    dχρ: Operator,
-    measurement: Operator,
     c1: Lindblad,
     c2: Lindblad,
     c3: [Lindblad; 2],
