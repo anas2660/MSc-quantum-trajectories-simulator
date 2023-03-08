@@ -79,9 +79,6 @@ const g: [fp; 2] = [g_0, g_0];
 struct QubitSystem {
     Hp: [Operator; 2],
     ρ: Operator,
-    Y: cfp,
-    //t: fp
-    sqrt_η: fp,
     c_out_phased: Lindblad,
     c1: Lindblad,
     c2: Lindblad,
