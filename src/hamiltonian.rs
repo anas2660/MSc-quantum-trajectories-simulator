@@ -19,7 +19,20 @@ pub struct QuantumCircuitState<'a> {
     next: u32 // next operation to perform
 }
 
+#[derive(Clone)]
+pub struct Hamiltonian {
+    H: Operator
+}
 
+
+impl Hamiltonian {
+
+    #[inline]
+    pub fn apply(&self,  ρ: &Operator) -> Operator {
+        self.H * ρ.mul_conjugated(&self.H)
+    }
+
+}
 impl QuantumCircuit {
 
     // Using gate bases
