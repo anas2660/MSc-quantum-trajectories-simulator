@@ -79,7 +79,6 @@ const NOISE_FACTOR: fp = 1.0;
 
 #[derive(Clone)]
 struct QubitSystem {
-    Hp: [Operator; 2],
     ρ: Operator,
     c_out_phased: Lindblad,
     c1: Lindblad,
@@ -135,31 +134,6 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
     apply_individually_parts(op).iter()
         .zip(factors).fold(Operator::zero(), |sum, (part, factor)| sum + factor * (*part) )
 }
-
-
-fn solve_analytically(H: &Matrix) -> Operator {
-    let mut current_Δt = Δt as f64;
-
-    for attempt in 1..32 {
-        println!("attempt {attempt}");
-        println!("current Δt {current_Δt}");
-        let result = (SC!(0.0,-current_Δt)*H).budget_matrix_exponential();
-        if let Ok(result) = result  {
-            println!("Ok(result) = \n{}", result);
-            return result.pow(1<<attempt).to_operator();
-        }
-
-        match result {
-            Ok(_) => (),
-            Err(max) => println!("Max was {max}"),
-        }
-
-        current_Δt /= 2.0;
-    }
-
-    panic!("Insufficient precision in matrix exponential when solving analytically!");
-}
-
 
 impl QubitSystem {
 
@@ -264,18 +238,8 @@ impl QubitSystem {
             (H, Δt * (STEP_COUNT-1) as fp)
         ]);
 
-        // Solve analytically
-        let Hmat: Matrix = H.into();
-        let sol = solve_analytically(&Hmat);
-        let Hp = [ sol, sol.conjugate() ];
-
-        for (i, p) in Hp.iter().enumerate() {
-            println!("p{i}:\n{p}");
-        }
-
         (
             Self {
-                Hp,
                 ρ,
                 c_out_phased,
                 c1,
@@ -287,12 +251,7 @@ impl QubitSystem {
         )
     }
 
-    #[inline]
-    fn evolve(&self,  ρ: &Operator) -> Operator {
-        self.Hp[0] * ρ * self.Hp[1]
-    }
-
-    fn deterministic(&self, H: &Operator, ρ: &Operator) -> Operator {
+    fn deterministic(&self, ρ: &Operator) -> Operator {
         *Operator::lindblad_term(ρ, &self.c1)
             //lindblad(ρ, &self.c1)   // Photon field transmission/losses
             ////+ self.lindblad(a)
@@ -312,7 +271,7 @@ impl QubitSystem {
         [ a1+a2, I*(a2-a1) ]
     }
 
-    fn srk2v2(&mut self, H: &Operator, S: [SV32; 2]) {
+    fn srk2v2(&mut self, H: &Hamiltonian, S: [SV32; 2]) {
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
 
@@ -323,27 +282,27 @@ impl QubitSystem {
         let offset = S.map(|s| s * sqrtΔt );
 
         let bt = self.stochastic2(&self.ρ);
-        let K1 = Δt * self.deterministic(H, &self.ρ)
+        let K1 = Δt * self.deterministic(&self.ρ)
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
 
-        let evolved_ρ = self.evolve(&self.ρ);
+        let evolved_ρ = H.apply(&self.ρ);
 
         let new_ρ = evolved_ρ + K1;
         // new_ρ.normalize();
 
         let bt = self.stochastic2(&new_ρ);
-        let K2 = Δt * self.deterministic(H, &new_ρ)
+        let K2 = Δt * self.deterministic(&new_ρ)
             + (ΔWx + offset[0]) * bt[0]
             + (ΔWy + offset[1]) * bt[1];
 
         self.ρ = evolved_ρ + 0.5 * (K1 + K2);
     }
 
-    fn euler(&mut self, H: &Operator) {
-        let a = self.deterministic(H, &self.ρ);
+    fn euler(&mut self, H: &Hamiltonian) {
+        let a = self.deterministic(&self.ρ);
         let b = self.stochastic2(&self.ρ);
-        self.ρ = self.evolve(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
+        self.ρ = H.apply(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
     }
 
     //fn runge_kutta(&mut self, H: &Operator) {
