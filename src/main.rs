@@ -304,19 +304,6 @@ impl QubitSystem {
         let b = self.stochastic(&self.ρ);
         self.ρ = H.apply(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
     }
-
-    //fn runge_kutta(&mut self, H: &Operator) {
-    //    let (k0, dY0) = self.dv(H, &self.ρ);
-    //    let (k1, dY1) = self.dv(H, (self.ρ + 0.5 * Δt * k0).normalize());
-    //    let (k2, dY2) = self.dv(H, (self.ρ + 0.5 * Δt * k1).normalize());
-    //    let (k3, dY3) = self.dv(H, (self.ρ + Δt * k2).normalize());
-    //    self.ρ += (Δt / 3.0) * (k1 + k2 + 0.5 * (k0 + k3));
-    //    //self.Y += t3 * (dY1 + dY2 + 0.5 * (dY0 + dY3));
-    //}
-
-    //fn euler(&mut self, H: &Operator) {
-    //    self.ρ += self.dv(H, &self.ρ).0 * Δt;
-    //}
 }
 
 fn simulate() {
