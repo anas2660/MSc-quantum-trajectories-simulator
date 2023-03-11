@@ -426,18 +426,13 @@ let γ_φ = {γ_φ};
                     system.dZ *= &sqrtηdt;
                 }
 
-                // Do the runge-kutta4 step.
-                //system.runge_kutta(H);
-                //system.euler(H);
-                //////////let copy = system.ρ;
-                //system.millstein(H);
-                //system.srk2(H); // NAN
+                // Do the stochastic rk2 step.
                 system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
 
-                /////////let prenorm = system.ρ;
+                //let prenorm = system.ρ;
 
                 // Normalize rho.
                 ////println!("p1{}", system.ρ);
