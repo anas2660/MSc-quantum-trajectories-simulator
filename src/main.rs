@@ -251,7 +251,7 @@ impl QubitSystem {
         )
     }
 
-    fn deterministic(&self, ρ: &Operator) -> Operator {
+    fn lindblad_terms(&self, ρ: &Operator) -> Operator {
         *Operator::lindblad_term(ρ, &self.c1)
             //lindblad(ρ, &self.c1)   // Photon field transmission/losses
             ////+ self.lindblad(a)
@@ -282,7 +282,7 @@ impl QubitSystem {
         let offset = S.map(|s| s * sqrtΔt );
 
         let bt = self.stochastic2(&self.ρ);
-        let K1 = Δt * self.deterministic(&self.ρ)
+        let K1 = Δt * self.lindblad_terms(&self.ρ)
             + (ΔWx - offset[0]) * bt[0]
             + (ΔWy - offset[1]) * bt[1];
 
@@ -292,7 +292,7 @@ impl QubitSystem {
         // new_ρ.normalize();
 
         let bt = self.stochastic2(&new_ρ);
-        let K2 = Δt * self.deterministic(&new_ρ)
+        let K2 = Δt * self.lindblad_terms(&new_ρ)
             + (ΔWx + offset[0]) * bt[0]
             + (ΔWy + offset[1]) * bt[1];
 
@@ -300,7 +300,7 @@ impl QubitSystem {
     }
 
     fn euler(&mut self, H: &Hamiltonian) {
-        let a = self.deterministic(&self.ρ);
+        let a = self.lindblad_terms(&self.ρ);
         let b = self.stochastic2(&self.ρ);
         self.ρ = H.apply(&self.ρ) + a * Δt + self.dZ.real*b[0] + self.dZ.imag*b[1];
     }
