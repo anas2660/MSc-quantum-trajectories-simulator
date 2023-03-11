@@ -271,7 +271,7 @@ impl QubitSystem {
         [ a1+a2, I*(a2-a1) ]
     }
 
-    fn srk2v2(&mut self, H: &Hamiltonian, S: [SV32; 2]) {
+    fn srk2(&mut self, H: &Hamiltonian, S: [SV32; 2]) {
         let ΔWx = self.dZ.real;
         let ΔWy = self.dZ.imag;
 
@@ -445,7 +445,7 @@ let γ_φ = {γ_φ};
                 //////////let copy = system.ρ;
                 //system.millstein(H);
                 //system.srk2(H); // NAN
-                system.srk2v2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
+                system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
 
                 // Check for NANs
                 // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
