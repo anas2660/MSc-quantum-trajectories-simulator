@@ -306,7 +306,13 @@ impl QubitSystem {
     }
 }
 
-fn simulate() {
+struct MeasurementRecords {
+    measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
+}
+
+fn simulate<const CUSTOM_RECORDS: bool>(records: Option<Box<MeasurementRecords>>) {
+    if CUSTOM_RECORDS { unimplemented!(); }
+
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
         .unwrap()
@@ -556,7 +562,7 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     let start = std::time::Instant::now();
-    simulate();
+    simulate::<false>(None);
     let elapsed = start.elapsed().as_millis();
 
     println!(
