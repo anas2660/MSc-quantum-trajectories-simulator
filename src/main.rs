@@ -318,11 +318,12 @@ fn simulate<const CUSTOM_RECORDS: bool>(records: Option<Box<MeasurementRecords>>
         .unwrap()
         .as_secs();
 
-    let create_output_file = |name| std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap();
-    let mut parameter_file = create_output_file("parameters.txt");
-    let mut data_file      = create_output_file("trajectories.dat");
-    let mut hist_file      = create_output_file("hist.dat");
-    let mut current_file   = create_output_file("currents.dat");
+    let create_output_file   = |name| std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap();
+    let mut parameter_file   = create_output_file("parameters.txt");
+    let mut data_file        = create_output_file("trajectories.dat");
+    let mut hist_file        = create_output_file("hist.dat");
+    let mut current_file     = create_output_file("currents.dat");
+    let mut final_state_file = create_output_file("final_state.dat");
 
     // FIXME
     parameter_file
@@ -360,7 +361,8 @@ let γ_φ = {γ_φ};
     struct ThreadResult {
         trajectory_sum:  [StateProbabilitiesSimd; STEP_COUNT as usize+1],
         trajectory_hist: [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
-        current_sum: [Complex; SIMULATIONS_PER_THREAD as usize]
+        current_sum: [Complex; SIMULATIONS_PER_THREAD as usize],
+        final_states: [StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
     }
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
@@ -483,8 +485,9 @@ let γ_φ = {γ_φ};
             }
 
             local.current_sum[simulation as usize] = J;
-
+            local.final_states[simulation as usize] = P;
         }
+
         let total_time = now.elapsed().as_millis();
 
         println!("Thread {thread_id} finished {SIMULATIONS_PER_THREAD} simulations in {total_time} ms ({} μs/sim) (total section time {} ms)",
@@ -521,6 +524,14 @@ let γ_φ = {γ_φ};
                 current_file.write_all(&the_current.imag.as_array()[lane].to_le_bytes()).unwrap();
             }
         }
+
+        for the_final_state in local.final_states.iter() {
+            let final_state_array = the_final_state.as_array();
+            for final_state in final_state_array {
+                final_state_file.write_all(&final_state.to_le_bytes());
+            }
+        }
+
     }
 
     for s in trajectory_average.iter_mut() {
