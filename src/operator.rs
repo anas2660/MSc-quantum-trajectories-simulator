@@ -664,10 +664,26 @@ impl StateProbabilitiesSimd {
     }
 
     pub fn average(&self) -> StateProbabilities {
-        let mut result = StateProbabilities { v: [0.0; Operator::SIZE]};
+        let mut result = StateProbabilities { v: [0.0; Operator::SIZE] };
         for (out, v) in result.v.iter_mut().zip(self.v.iter()) {
             *out = v.as_array().iter().sum::<fp>() / Real::LANES as fp;
         }
+        result
+    }
+
+    pub fn as_array(&self) -> [StateProbabilities; Real::LANES] {
+        let mut result: [StateProbabilities; Real::LANES] = unsafe { std::mem::zeroed() };
+
+        for lane in 0..Real::LANES {
+            let v = [0.0; Operator::SIZE];
+
+            for i in 0..Operator::SIZE {
+                v[i] = self.v[i][lane];
+            }
+
+            result[lane] = StateProbabilities { v };
+        }
+
         result
     }
 }
