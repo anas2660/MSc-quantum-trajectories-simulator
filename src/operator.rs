@@ -690,10 +690,14 @@ impl StateProbabilitiesSimd {
 
 impl StateProbabilities {
     pub fn to_le_bytes(&self) -> [u8; std::mem::size_of::<fp>() * Operator::SIZE] {
-        let mut buf = [0u8; std::mem::size_of::<fp>() * Operator::SIZE];
-        for (vb, v) in buf.chunks_mut(std::mem::size_of::<fp>()).zip(self.v.iter()) {
+        const FP_SIZE: usize = std::mem::size_of::<fp>();
+
+        let mut buf = [0u8; FP_SIZE * Operator::SIZE];
+
+        for (vb, v) in buf.chunks_mut(FP_SIZE).zip(self.v.iter()) {
             vb.copy_from_slice(&v.to_le_bytes());
         }
+
         buf
     }
 }
