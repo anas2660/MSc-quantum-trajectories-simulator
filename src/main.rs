@@ -310,8 +310,8 @@ struct MeasurementRecords {
     measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
 }
 
-fn simulate<const CUSTOM_RECORDS: bool>(records: Option<Box<MeasurementRecords>>) {
-    if CUSTOM_RECORDS { unimplemented!(); }
+fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool>(records: Option<Box<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
+    if CUSTOM_RECORDS || RETURN_RECORDS { unimplemented!(); }
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -555,6 +555,8 @@ let γ_φ = {γ_φ};
         }
     }
     hist_file.write_all(&buffer).unwrap();
+
+    None
 }
 
 fn bloch_vector(rho: &Operator) -> [fp; 3] {
@@ -573,7 +575,7 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     let start = std::time::Instant::now();
-    simulate::<false>(None);
+    simulate::<false, false>(None);
     let elapsed = start.elapsed().as_millis();
 
     println!(
