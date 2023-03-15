@@ -310,7 +310,7 @@ struct MeasurementRecords {
     measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
 }
 
-fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool>(records: Option<Box<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
+fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(records: Option<Box<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
     if CUSTOM_RECORDS { unimplemented!(); }
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
@@ -318,7 +318,20 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool>(records: Opt
         .unwrap()
         .as_secs();
 
-    let create_output_file   = |name| std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap();
+    // This if statement seems ridiculous, but it cannot resolve OutputFile::<WRITE_FILES>::create.
+    let create_output_file   = |name| {
+        if WRITE_FILES {
+            std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap()
+        } else {
+            if cfg!(windows) {
+                // FIXME: I haven't tested if "nul" works on windows.
+                std::fs::File::create("nul").unwrap()
+            } else {
+                std::fs::File::create("/dev/null").unwrap()
+            }
+        }
+    };
+
     let mut parameter_file   = create_output_file("parameters.txt");
     let mut data_file        = create_output_file("trajectories.dat");
     let mut hist_file        = create_output_file("hist.dat");
@@ -590,7 +603,7 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     let start = std::time::Instant::now();
-    simulate::<false, false>(None);
+    simulate::<false, true, true>(None);
     let elapsed = start.elapsed().as_millis();
 
     println!(
