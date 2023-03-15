@@ -311,7 +311,7 @@ struct MeasurementRecords {
 }
 
 fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool>(records: Option<Box<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
-    if CUSTOM_RECORDS || RETURN_RECORDS { unimplemented!(); }
+    if CUSTOM_RECORDS { unimplemented!(); }
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -363,10 +363,12 @@ let γ_φ = {γ_φ};
         trajectory_hist: [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
         current_sum: [Complex; SIMULATIONS_PER_THREAD as usize],
         final_states: [StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
+        measurements: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
         let mut local = alloc_zero!(ThreadResult);
+        let mut measurements = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
 
         // Start the timer.
         let now = std::time::Instant::now();
@@ -406,6 +408,8 @@ let γ_φ = {γ_φ};
             let mut J = ZERO;
 
             let (mut H, mut steps_to_next_gate) = circuit_state.next();
+
+            let current_measurements = &mut measurements[simulation as usize];
 
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
@@ -465,11 +469,13 @@ let γ_φ = {γ_φ};
                 // Compute current.
                 // FIXME: Fix this, missing factor i think.
                 const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
-                J += Complex {
+                let dI = Complex {
                     real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
                     imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.imag
                 };
 
+                J += dI;
+                current_measurements[step] = dI;
 
                 // Calculate integrated current
                 //let zeta = system.Y * (1.0 / t.sqrt());
@@ -499,14 +505,18 @@ let γ_φ = {γ_φ};
             s.divide(SIMULATIONS_PER_THREAD as fp);
         }
 
+        local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
+
         local
     })).collect();
 
     let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize].into_boxed_slice();
     let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1]);
+    let mut measurements = alloc_zero!(MeasurementRecords);
 
     // Wait for threads
-    for tt in threads {
+
+    for (i, tt) in threads.into_iter().enumerate() {
         let local = tt.join().unwrap();
         for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
             s.add(ls);
@@ -532,6 +542,11 @@ let γ_φ = {γ_φ};
             }
         }
 
+        if let Some(m) = local.measurements {
+            let a = i * SIMULATIONS_PER_THREAD as usize;
+            let b = (i+1) * SIMULATIONS_PER_THREAD as usize;
+            measurements.measurements[a..b].copy_from_slice(&m[..]);
+        }
     }
 
     for s in trajectory_average.iter_mut() {
@@ -556,7 +571,7 @@ let γ_φ = {γ_φ};
     }
     hist_file.write_all(&buffer).unwrap();
 
-    None
+    if RETURN_RECORDS { Some(measurements) } else { None }
 }
 
 fn bloch_vector(rho: &Operator) -> [fp; 3] {
