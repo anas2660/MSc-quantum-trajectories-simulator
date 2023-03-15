@@ -528,7 +528,7 @@ let γ_φ = {γ_φ};
         for the_final_state in local.final_states.iter() {
             let final_state_array = the_final_state.as_array();
             for final_state in final_state_array {
-                final_state_file.write_all(&final_state.to_le_bytes());
+                final_state_file.write_all(&final_state.to_le_bytes()).unwrap();
             }
         }
 
