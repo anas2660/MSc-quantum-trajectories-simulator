@@ -20,7 +20,7 @@ mod sgenerator;
 use sgenerator::*;
 
 use rand_distr::StandardNormal;
-use std::io::Write;
+use std::{io::Write, sync::Arc, clone};
 
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 
@@ -306,12 +306,12 @@ impl QubitSystem {
     }
 }
 
+#[derive(Clone, Copy)]
 struct MeasurementRecords {
     measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
 }
 
-fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(records: Option<Box<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
-    if CUSTOM_RECORDS { unimplemented!(); }
+fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -319,7 +319,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
         .as_secs();
 
     // This if statement seems ridiculous, but it cannot resolve OutputFile::<WRITE_FILES>::create.
-    let create_output_file   = |name| {
+    let create_output_file = |name| {
         if WRITE_FILES {
             std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap()
         } else {
@@ -379,9 +379,13 @@ let γ_φ = {γ_φ};
         measurements: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
-    let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| std::thread::spawn(move || {
+    let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| {
+        let input_records_arc = records.clone();
+        std::thread::spawn( move || {
+
         let mut local = alloc_zero!(ThreadResult);
         let mut measurements = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
+        let input_records = &input_records_arc;
 
         // Start the timer.
         let now = std::time::Instant::now();
@@ -441,15 +445,25 @@ let γ_φ = {γ_φ};
                 // TODO: DELETE
                 // assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
 
-                // Sample on the normal distribution.
-                {
+                // Get a dZ value.
+                if CUSTOM_RECORDS {
+                    let dI = input_records.as_ref().unwrap().measurements[thread_id as usize * SIMULATIONS_PER_THREAD as usize + simulation as usize][step];
+
+                    let to_sub = Complex {
+                        real: (x*system.ρ).trace().real,
+                        imag: (y*system.ρ).trace().real
+                    };
+
+                    const DT_OVER_SQRT2: Real = Real::from_array([Δt/SQRT_2; Real::LANES]);
+                    system.dZ = DT_OVER_SQRT2 * &(dI - to_sub);
+                } else {
+                    // Sample on the normal distribution.
                     for lane in 0..Real::LANES {
                         system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                         system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
-
-                    system.dZ *= &sqrtηdt;
                 }
+                system.dZ *= &sqrtηdt;
 
                 // Do the stochastic rk2 step.
                 system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
@@ -521,7 +535,7 @@ let γ_φ = {γ_φ};
         local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
 
         local
-    })).collect();
+    })}).collect();
 
     let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize].into_boxed_slice();
     let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1]);
@@ -596,6 +610,18 @@ fn bloch_vector(rho: &Operator) -> [fp; 3] {
     ]
 }
 
+
+fn simple() {
+    simulate::<false, false, true>(None);
+}
+
+fn feed_current_known_state () {
+    let a = simulate::<false, true, false>(None);
+
+
+    let b = simulate::<true, false, true>(Some(a.unwrap().into()));
+}
+
 fn main() {
     println!("Starting simulation...");
 
@@ -603,7 +629,7 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     let start = std::time::Instant::now();
-    simulate::<false, true, true>(None);
+    feed_current_known_state();
     let elapsed = start.elapsed().as_millis();
 
     println!(
