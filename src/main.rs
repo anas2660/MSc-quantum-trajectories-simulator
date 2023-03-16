@@ -463,8 +463,8 @@ let γ_φ = {γ_φ};
                         system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                         system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                     }
+                    system.dZ *= &sqrtηdt;
                 }
-                system.dZ *= &sqrtηdt;
 
                 // Do the stochastic rk2 step.
                 system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
