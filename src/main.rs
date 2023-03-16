@@ -33,7 +33,7 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const INITIAL_PROBABILITIES: [f64; Operator::SIZE] = [
+const INITIAL_PROBABILITIES: [fp; Operator::SIZE] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
