@@ -33,7 +33,7 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const initial_probabilities: [f64; Operator::SIZE] = [
+const INITIAL_PROBABILITIES: [f64; Operator::SIZE] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
@@ -137,7 +137,7 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 
 impl QubitSystem {
 
-    fn new() -> (Self, QuantumCircuit) {
+    fn new(initial_probabilities: [fp; Operator::SIZE]) -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
         let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
@@ -311,7 +311,8 @@ struct MeasurementRecords {
     measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
 }
 
-fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
+fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>
+    (initial_probabilities: [fp; Operator::SIZE], records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -392,7 +393,7 @@ let γ_φ = {γ_φ};
         let mut total_section_time = 0;
 
         // Create initial system.
-        let (initial_system, circuit) = QubitSystem::new();
+        let (initial_system, circuit) = QubitSystem::new(initial_probabilities);
 
         // RNG
         let mut rng = thread_rng();
@@ -612,14 +613,14 @@ fn bloch_vector(rho: &Operator) -> [fp; 3] {
 
 
 fn simple() {
-    simulate::<false, false, true>(None);
+    simulate::<false, false, true>(INITIAL_PROBABILITIES, None);
 }
 
 fn feed_current_known_state () {
-    let a = simulate::<false, true, false>(None);
+    let a = simulate::<false, true, false>(INITIAL_PROBABILITIES, None);
 
 
-    let b = simulate::<true, false, true>(Some(a.unwrap().into()));
+    let b = simulate::<true, false, true>(INITIAL_PROBABILITIES, Some(a.unwrap().into()));
 }
 
 fn main() {
