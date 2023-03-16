@@ -113,7 +113,17 @@ current_metadata = np.frombuffer(current_data_buffer, np.uint32, count=1)
 current_simulations = current_metadata[0]
 current_data = np.reshape(np.frombuffer(current_data_buffer, float_type, offset=4), (current_simulations, 2))
 
-plt.plot(current_data[:,0], current_data[:,1], 'o')
+
+files = glob.glob("results/*final_state*")
+files.sort()
+filename = files[-1]
+final_state_data_buffer = open(filename, "rb").read()
+final_state_data = np.reshape(np.frombuffer(final_state_data_buffer, float_type, offset=0), (current_simulations, state_count))
+
+final_state_colors = final_state_data[:,:3]
+
+
+plt.scatter(current_data[:,0], current_data[:,1], c=final_state_colors)
 
 avg_x = np.average(current_data[:,0])
 avg_y = np.average(current_data[:,1])
