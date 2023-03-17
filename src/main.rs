@@ -617,10 +617,11 @@ fn simple() {
 }
 
 fn feed_current_known_state () {
-    let a = simulate::<false, true, false>(INITIAL_PROBABILITIES, None);
+    // Current of known state of |11>
+    let a = simulate::<false, true, false>([0.0,0.0,0.0,1.0], None);
 
-
-    let b = simulate::<true, false, true>(INITIAL_PROBABILITIES, Some(a.unwrap().into()));
+    // Feed current into perfect superposition.
+    let b = simulate::<true, false, true>([0.25,0.25,0.25,0.25], Some(a.unwrap().into()));
 }
 
 fn main() {
