@@ -101,18 +101,15 @@ plt.tight_layout()
 plt.show()
 
 
-
-
+# Current plot data
 files = glob.glob("results/*current*")
 files.sort()
 filename = files[-1]
-
 
 current_data_buffer = open(filename, "rb").read()
 current_metadata = np.frombuffer(current_data_buffer, np.uint32, count=1)
 current_simulations = current_metadata[0]
 current_data = np.reshape(np.frombuffer(current_data_buffer, float_type, offset=4), (current_simulations, 2))
-
 
 files = glob.glob("results/*final_state*")
 files.sort()
@@ -121,17 +118,46 @@ final_state_data_buffer = open(filename, "rb").read()
 final_state_data = np.reshape(np.frombuffer(final_state_data_buffer, float_type, offset=0), (current_simulations, state_count))
 
 final_state_colors = final_state_data[:,:3]
+final_state_colors = final_state_data[:,0]
 
+# Current plot actual plotting
+from matplotlib.widgets import Slider
+initial_state = int(0)
+fig, ax = plt.subplots()
+fig.subplots_adjust(left=0.1, bottom=0.15, right=0.99, top=0.95)
 
-plt.scatter(current_data[:,0], current_data[:,1], c=final_state_colors)
+points = ax.scatter(
+    current_data[:,0], current_data[:,1], 
+    c=final_state_colors, cmap=cm.turbo,
+    vmin=0.0, vmax = 1.0)
 
 avg_x = np.average(current_data[:,0])
 avg_y = np.average(current_data[:,1])
-plt.plot(avg_x, avg_y, 'ro')
-plt.grid()
-
-
+#plt.plot(avg_x, avg_y, 'ro')
+ax.grid()
 print(avg_x, ",", avg_y)
+
+# make slider for selecting state
+axslider = fig.add_axes([0.05, 0.065, 0.9, 0.03])
+slider = Slider(
+    ax=axslider,
+    label="",
+    valmin=0,
+    valmax=state_count-1,
+    valinit=initial_state,
+    valstep=1,
+    valfmt='%0.0f'
+)
+
+axslider.add_artist(axslider.xaxis)
+axslider.set_xticks(ticks = np.arange(0.0, state_count, dtype=int), labels = [FORMAT_STRING.format(i) for i in np.arange(0.0, state_count, dtype=int)])
+
+fig.colorbar(points)
+
+def update(val):
+    points.set_array(final_state_data[:, slider.val])
+    fig.canvas.draw_idle()
+slider.on_changed(update)
 
 plt.show()
 
