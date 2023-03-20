@@ -208,9 +208,6 @@ impl QubitSystem {
         // Remove any non-hermitian numerical error
         let H = 0.5*(H + H.conjugate());
 
-        //const hbar: fp = 0.00000000000000000000000000000000010545718;
-        //let H = H*hbar;
-
         // Construct initial state
         let p_sum = initial_probabilities.iter().fold(0.0, |acc, x| acc+x);
         let ψ = Matrix::vector(&initial_probabilities.map(|p| (p/p_sum).sqrt() ));
@@ -406,17 +403,12 @@ let γ_φ = {γ_φ};
         let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * NOISE_FACTOR);
         println!("sqrtηdt: {sqrtηdt:?}");
 
-        for simulation in 0..SIMULATIONS_PER_THREAD {
-            //// let mut trajectory = [StateProbabilitiesSimd::zero(); STEP_COUNT as usize+1 ];
 
+
+        for simulation in 0..SIMULATIONS_PER_THREAD {
             // Initialize system
-            //let before = now.elapsed().as_millis();
             let mut system = initial_system.clone();
             let mut circuit_state = circuit.make_new_state();
-
-            //let after = now.elapsed().as_millis();
-            //total_section_time += after - before;
-
             let mut t = Δt;
 
             let c = system.c_out_phased.c;
@@ -431,6 +423,7 @@ let γ_φ = {γ_φ};
 
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
+
                 if steps_to_next_gate == 0 {
                     (H, steps_to_next_gate) = circuit_state.next();
                 }
@@ -475,24 +468,7 @@ let γ_φ = {γ_φ};
                 //let prenorm = system.ρ;
 
                 // Normalize rho.
-                ////println!("p1{}", system.ρ);
                 system.ρ.normalize();
-                ////println!("p2{}", system.ρ);
-                //assert!(system.ρ.trace().real[0] < 2.01);
-                //assert!(system.ρ.trace().real[0] > 0.1);
-                /////////let first = system.ρ[(0,0)].first();
-                /////////let is_nan = first.0.is_nan();
-                /////////let leaked = false;//first.1.abs() > 0.01;
-                /////////if is_nan || leaked {
-                /////////    println!("FAILED AT t = {t}");
-                /////////    println!("Leaked: {leaked}, NAN: {is_nan}");
-                /////////    println!("before=\n{copy}");
-                /////////    println!("prenorm:\n{prenorm}");
-                /////////    println!("ρ = \n{}", system.ρ);
-                /////////    panic!();
-                /////////}
-
-                //println!("trace(rho) = {}", system.ρ.trace());
 
                 // Compute current.
                 // FIXME: Fix this, missing factor i think.
