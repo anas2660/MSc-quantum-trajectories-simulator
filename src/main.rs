@@ -149,21 +149,6 @@ impl QubitSystem {
 
         let sqrt2κ1 = fp::sqrt(2.0*κ_1);
 
-        // NONDISPERSIVE
-        /*
-        let a = sqrt2κ1*β*identity - I*apply_and_scale_individually(g, &σ_minus);
-        let a = a / (κ - I*Δ_br);
-
-        let N = a.dagger() * a;
-
-        let H = Δ_br * N
-            + 0.5        * apply_and_scale_individually(Δ_b, &σ_z)
-            + a.dagger() * apply_and_scale_individually(g, &σ_minus)
-            + a          * apply_and_scale_individually(g, &σ_plus)
-            + I*sqrt2κ1  * (β*a.dagger() - β.conjugate()*a)
-            ;
-         */
-
         // DISPERSIVE
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
@@ -192,14 +177,6 @@ impl QubitSystem {
 
         let H = Δ_br * N + term2 + term3
             + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
-            //+ 0.5 * apply_and_scale_individually(Δ_b, &σ_z)
-            //+ (N + 0.5*identity) * χσ_z
-            //+ 0.5 * omega * apply_individually(&(&sigma_plus + &sigma_minus));
-        /*
-        */
-
-
-        //let hamiltonian = omega_r * a.dagger() * a + (omega_s + 2.0 * (g*g/delta_s) * (a.dagger()*a + 0.5*Operator::identity()));
 
         // CNOT 0, 1
         //let hamiltonian = hamiltonian
