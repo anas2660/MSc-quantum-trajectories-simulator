@@ -163,6 +163,48 @@ plt.show()
 
 
 
+# Current plot actual plotting stick thing
+initial_state = int(0)
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+fig.subplots_adjust(left=0.1, bottom=0.15, right=0.99, top=0.95)
+
+#points = ax.scatter(current_data[:,0], current_data[:,1], final_state_data[:, 0])
+markerline, stemlines, baseline = ax.stem(current_data[:,0], current_data[:,1], final_state_data[:, 0], basefmt=" ")
+#, linefmt='grey'
+
+ax.set(xlabel='i', ylabel='q', zlabel='probability')
+ax.set_zlim(0,1)
+ax.grid()
+print(avg_x, ",", avg_y)
+
+# make slider for selecting state
+axslider = fig.add_axes([0.05, 0.065, 0.9, 0.03])
+slider = Slider(
+    ax=axslider,
+    label="",
+    valmin=0,
+    valmax=state_count-1,
+    valinit=initial_state,
+    valstep=1,
+    valfmt='%0.0f'
+)
+axslider.add_artist(axslider.xaxis)
+axslider.set_xticks(ticks = np.arange(0.0, state_count, dtype=int), labels = [FORMAT_STRING.format(i) for i in np.arange(0.0, state_count, dtype=int)])
+
+def update2(val):
+    #points.set_array(final_state_data[:, slider.val])
+    ax.cla()
+    markerline, stemlines, baseline = ax.stem(current_data[:,0], current_data[:,1], final_state_data[:, slider.val], basefmt=" ")
+    ax.set_zlim(0,1)
+    #plt.setp(markerline, marker='D', markersize=10, markeredgecolor="orange", markeredgewidth=2)
+    fig.canvas.draw_idle()
+slider.on_changed(update2)
+
+plt.show()
+
+
+
 # TODO fix memory leak
 if False:
     for i in range(0, frame_count, 1):
