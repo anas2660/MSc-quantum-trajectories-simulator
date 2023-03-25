@@ -226,14 +226,12 @@ impl QubitSystem {
     }
 
     fn lindblad_terms(&self, ρ: &Operator) -> Operator {
-        *Operator::lindblad_term(ρ, &self.c1)
-            //lindblad(ρ, &self.c1)   // Photon field transmission/losses
-            ////+ self.lindblad(a)
-            //.lindblad(ρ, &self.c2) // Decay to ground state
+        *Operator::lindblad_term(ρ, &self.c1) // Photon field transmission/losses
+            // .lindblad(ρ, &self.c2) // Decay to ground state
             .lindblad(ρ, &self.c3[0])
             .lindblad(ρ, &self.c3[1])
-            .lindblad(ρ, &self.c_out_phased) // c_out
-            //.lindblad2(ρ, &self.c_out_phased)
+            .lindblad(ρ, &self.c_out_phased)
+            // .lindblad2(ρ, &self.c_out_phased) // Second order
     }
 
     fn stochastic(&self, ρ: &Operator) -> [Operator; 2] {
@@ -439,16 +437,10 @@ let γ_φ = {γ_φ};
                 // Do the stochastic rk2 step.
                 system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
 
-                // Check for NANs
-                // if system.rho[(0,0)].first().0.is_nan() { panic!("step {}", step) }
-
-                //let prenorm = system.ρ;
-
                 // Normalize rho.
                 system.ρ.normalize();
 
                 // Compute current.
-                // FIXME: Fix this, missing factor i think.
                 const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
                 let dI = Complex {
                     real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
@@ -457,9 +449,6 @@ let γ_φ = {γ_φ};
 
                 J += dI;
                 current_measurements[step] = dI;
-
-                // Calculate integrated current
-                //let zeta = system.Y * (1.0 / t.sqrt());
 
                 t += Δt;
             }
