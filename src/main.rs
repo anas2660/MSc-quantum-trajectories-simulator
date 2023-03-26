@@ -33,7 +33,7 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const INITIAL_PROBABILITIES: [fp; Operator::SIZE] = [
+const INITIAL_PROBABILITIES: [f64; Operator::SIZE] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
@@ -135,9 +135,33 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
         .zip(factors).fold(Operator::zero(), |sum, (part, factor)| sum + factor * (*part) )
 }
 
+#[derive(Clone, Copy)]
+enum InitialState {
+    Probabilites([f64; Operator::SIZE]),
+    DensityMatrix(Operator)
+}
+
+impl From<InitialState> for Operator {
+    fn from(value: InitialState) -> Self {
+        match value {
+            InitialState::Probabilites(P) => {
+                // Get probability sum.
+                let p_sum = P.iter().fold(0.0, |acc, x| acc+x);
+
+                // Normalize probabilities and take square root to get coefficients.
+                let ψ = Matrix::vector(&P.map(|p| (p/p_sum).sqrt() ));
+
+                // Convert to density matrix
+                (&ψ * ψ.transpose()).to_operator()
+            },
+            InitialState::DensityMatrix(ρ) => ρ,
+        }
+    }
+}
+
 impl QubitSystem {
 
-    fn new(initial_probabilities: [fp; Operator::SIZE]) -> (Self, QuantumCircuit) {
+    fn new(initial_state: InitialState) -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
         let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
@@ -186,9 +210,7 @@ impl QubitSystem {
         let H = 0.5*(H + H.conjugate());
 
         // Construct initial state
-        let p_sum = initial_probabilities.iter().fold(0.0, |acc, x| acc+x);
-        let ψ = Matrix::vector(&initial_probabilities.map(|p| (p/p_sum).sqrt() ));
-        let ρ = (&ψ * ψ.transpose()).to_operator();
+        let ρ = initial_state.into();
         println!("Initial ρ:\n{ρ}");
 
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
@@ -284,7 +306,7 @@ struct MeasurementRecords {
 }
 
 fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>
-    (initial_probabilities: [fp; Operator::SIZE], records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
+    (initial_state: InitialState, records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -365,7 +387,7 @@ let γ_φ = {γ_φ};
         let mut total_section_time = 0;
 
         // Create initial system.
-        let (initial_system, circuit) = QubitSystem::new(initial_probabilities);
+        let (initial_system, circuit) = QubitSystem::new(initial_state);
 
         // RNG
         let mut rng = thread_rng();
@@ -555,15 +577,15 @@ fn bloch_vector(rho: &Operator) -> [fp; 3] {
 
 
 fn simple() {
-    simulate::<false, false, true>(INITIAL_PROBABILITIES, None);
+    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES), None);
 }
 
 fn feed_current_known_state () {
     // Current of known state of |11>
-    let a = simulate::<false, true, false>([0.0,0.0,0.0,1.0], None);
+    let a = simulate::<false, true, false>(InitialState::Probabilites([0.0, 0.45, 0.55, 0.0]), None);
 
     // Feed current into perfect superposition.
-    let b = simulate::<true, false, true>([0.25,0.25,0.25,0.25], Some(a.unwrap().into()));
+    let b = simulate::<true, false, true>(InitialState::Probabilites([0.25, 0.25, 0.25, 0.25]), Some(a.unwrap().into()));
 }
 
 fn main() {
