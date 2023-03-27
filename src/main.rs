@@ -138,7 +138,8 @@ fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Mat
 #[derive(Clone, Copy)]
 enum InitialState {
     Probabilites([f64; Operator::SIZE]),
-    DensityMatrix(Operator)
+    StateVector([f64; Operator::SIZE]),
+    DensityMatrix(Operator),
 }
 
 impl From<InitialState> for Operator {
@@ -152,6 +153,11 @@ impl From<InitialState> for Operator {
                 let ψ = Matrix::vector(&P.map(|p| (p/p_sum).sqrt() ));
 
                 // Convert to density matrix
+                (&ψ * ψ.transpose()).to_operator()
+            },
+            InitialState::StateVector(p) => {
+                // Convert to density matrix
+                let ψ = Matrix::vector(&p);
                 (&ψ * ψ.transpose()).to_operator()
             },
             InitialState::DensityMatrix(ρ) => ρ,
