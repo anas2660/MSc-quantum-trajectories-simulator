@@ -215,10 +215,7 @@ impl QubitSystem {
         // Remove any non-hermitian numerical error
         let H = 0.5*(H + H.conjugate());
 
-        // Construct initial state
-        let ρ = initial_state.into();
-        println!("Initial ρ:\n{ρ}");
-
+        // Lindblad terms
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
         let c_out_phased = Lindblad::new(c_out * ((I * Φ).exp()));
         let c1 = Lindblad::new((2.0 * κ).sqrt() * a);
@@ -242,7 +239,7 @@ impl QubitSystem {
 
         (
             Self {
-                ρ,
+                ρ: initial_state.into(),
                 c_out_phased,
                 c1,
                 c2,
