@@ -175,10 +175,6 @@ impl QubitSystem {
         let hadamard = Matrix::new(1.0, 1.0, 1.0, -1.0);
         let identity = Operator::identity();
 
-        let χσ_z = apply_and_scale_individually(χ, &σ_z);
-
-        let sqrt2κ1 = fp::sqrt(2.0*κ_1);
-
         // DISPERSIVE
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
@@ -193,10 +189,10 @@ impl QubitSystem {
         // Hamiltonian
         let term2 = apply_and_scale_individually(Δ_b.zip(χ).map(|(Δ_bs, χ_s)| 0.5*Δ_bs*identity + χ_s*N ), &σ_z);
 
-        let mut term3 = Operator::zero();
-
         let σ_m = apply_individually_parts(&σ_minus);
         let σ_p = apply_individually_parts(&σ_plus);
+
+        let mut term3 = Operator::zero();
 
         for s in 0..Operator::QUBIT_COUNT {
             for q in 0..Operator::QUBIT_COUNT {
@@ -208,42 +204,24 @@ impl QubitSystem {
         let H = Δ_br * N + term2 + term3
             + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
 
-        // CNOT 0, 1
-        //let hamiltonian = hamiltonian
-        //    + omega * (ket(&one)*bra(&one)).kronecker(&(ket(&one)*bra(&zero) + ket(&zero)*bra(&one))).to_operator();
-
         // Remove any non-hermitian numerical error
         let H = 0.5*(H + H.conjugate());
+        println!("H:\n{H}");
 
         // Lindblad terms
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
-        let c_out_phased = Lindblad::new(c_out * ((I * Φ).exp()));
-        let c1 = Lindblad::new((2.0 * κ).sqrt() * a);
-        let c2 = Lindblad::new(apply_individually(&(γ_dec.sqrt() * &σ_minus)));
-        let c3 = apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(Lindblad::new);
-
-        let sqrt_η = η.sqrt();
-        let dχρ = sqrt_η * (c_out_phased.c + c_out_phased.c.adjoint());
-
-        println!("H:\n{H}");
-
-        let omega = 1.0;
-        let hadamard_parts = apply_individually_parts(&((1.0/SQRT_2 as f64)*hadamard));
-        let H1 = H + omega * hadamard_parts[0];
-        let H2 = H + omega * hadamard_parts[1];
 
         let circuit = QuantumCircuit::new(&[
-            //(H1, 0.000001/SQRT_2),
             (H, Δt * (STEP_COUNT-1) as fp)
         ]);
 
         (
             Self {
                 ρ: initial_state.into(),
-                c_out_phased,
-                c1,
-                c2,
-                c3,
+                c_out_phased: Lindblad::new(c_out * ((I * Φ).exp())),
+                c1: Lindblad::new((2.0 * κ).sqrt() * a),
+                c2: Lindblad::new(apply_individually(&(γ_dec.sqrt() * &σ_minus))),
+                c3: apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(Lindblad::new),
                 dZ: Complex::new(0.0, 0.0),
             },
             circuit
