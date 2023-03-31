@@ -473,14 +473,6 @@ let γ_φ = {γ_φ};
     if RETURN_RECORDS { Some(measurements) } else { None }
 }
 
-fn bloch_vector(rho: &Operator) -> [fp; 3] {
-    const OFFSET: usize = 0;
-    [
-        rho[(OFFSET, 1 + OFFSET)].real()[0] + rho[(1 + OFFSET, 0 + OFFSET)].real()[0],
-        rho[(OFFSET, 1 + OFFSET)].imag()[0] - rho[(1 + OFFSET, 0 + OFFSET)].imag()[0],
-        rho[(OFFSET, 0 + OFFSET)].real()[0] - rho[(1 + OFFSET, 1 + OFFSET)].real()[0],
-    ]
-}
 
 
 fn simple() {
