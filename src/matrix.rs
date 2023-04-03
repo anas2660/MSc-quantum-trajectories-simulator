@@ -83,12 +83,25 @@ impl Matrix {
 
     #[inline]
     pub fn to_operator(&self) -> Operator {
-        assert!(Operator::SIZE == self.v.len());
-        assert!(Operator::SIZE == self.v[0].len());
+        let mut M = self.clone();
+
+        if M.v.len() != Operator::SIZE && M.v[0].len() != Operator::SIZE {
+            // Add extra col
+            for row in M.v.iter_mut() {
+                row.push(SC!(0.0));
+            }
+
+            // Add extra row
+            M.v.push([SC!(0.0); Operator::SIZE].to_vec());
+        }
+
+        assert_eq!(Operator::SIZE, M.v.len());
+        assert!(Operator::SIZE == M.v.len());
+        assert!(Operator::SIZE == M.v[0].len());
         let mut result = Operator::zero();
         for (row_id, row) in result.elements.iter_mut().enumerate() {
             for (column, element) in row.iter_mut().enumerate() {
-                *element = C!(self.v[row_id][column].real as fp, self.v[row_id][column].imag as fp);
+                *element = C!(M.v[row_id][column].real as fp, M.v[row_id][column].imag as fp);
             }
         }
         result

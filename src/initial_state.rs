@@ -2,8 +2,8 @@ use crate::{operator::Operator, matrix::Matrix};
 
 #[derive(Clone, Copy)]
 pub enum InitialState {
-    Probabilites([f64; Operator::SIZE]),
-    StateVector([f64; Operator::SIZE]),
+    Probabilites([f64; Operator::SIZE-1]),
+    StateVector([f64; Operator::SIZE-1]),
     DensityMatrix(Operator),
 }
 

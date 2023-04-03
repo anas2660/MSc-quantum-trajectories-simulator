@@ -9,12 +9,12 @@ use crate::{num::*, lindblad::Lindblad};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Operator {
-    pub elements: [[Complex; 4]; 4],
+    pub elements: [[Complex; 5]; 5],
 }
 
 impl Operator {
     pub const QUBIT_COUNT: usize = 2;
-    pub const SIZE: usize = 1 << Operator::QUBIT_COUNT;
+    pub const SIZE: usize = (1 << Operator::QUBIT_COUNT) + 1;
     //pub const IDENTITY: Self = Operator::identity();
 
     #[inline(always)]
@@ -43,6 +43,7 @@ impl Operator {
                 r1.try_into().unwrap(),
                 r2.try_into().unwrap(),
                 r3.try_into().unwrap(),
+                [C!(0.0); Operator::SIZE]
             ],
         }
     }

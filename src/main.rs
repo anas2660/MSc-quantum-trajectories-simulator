@@ -37,15 +37,15 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const INITIAL_PROBABILITIES: [f64; Operator::SIZE] = [
+const INITIAL_PROBABILITIES: [f64; Operator::SIZE-1] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
     //0.00  // 11
-    0.50, // 00
-    0.00, // 01
-    0.00, // 10
-    0.50, // 11
+    0.30, // 00
+    0.25, // 01
+    0.15, // 10
+    0.30, // 11
 ];
 
 // Simulation constants
