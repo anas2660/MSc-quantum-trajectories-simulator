@@ -24,9 +24,9 @@ mod helpers;
 use helpers::*;
 
 use rand_distr::StandardNormal;
-use std::{io::Write, sync::Arc, clone};
+use std::{io::Write, sync::Arc};
 
-use rand::{rngs::ThreadRng, thread_rng, Rng};
+use rand::{thread_rng, Rng};
 
 mod pipewriter;
 // use pipewriter::*;
