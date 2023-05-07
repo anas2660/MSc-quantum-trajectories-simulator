@@ -42,9 +42,14 @@ pub fn apply_individually(op: &Matrix) -> Operator {
     apply_individually_parts(op).iter().fold(Operator::zero(), |sum, x| &sum+x)
 }
 
-pub fn apply_and_scale_individually<T>(factors: [T; Operator::QUBIT_COUNT], op: &Matrix) -> Operator
-    where T: std::ops::Mul<Operator, Output = Operator>
+pub fn apply_and_scale_individually<T>(factors: &[T], op: &Matrix) -> Operator
+    where T: std::ops::Mul<Operator, Output = Operator> + Copy
 {
+    let mut actual_factors: [T; Operator::QUBIT_COUNT] = unsafe { std::mem::zeroed() };
+    for (actual, given) in actual_factors.iter_mut().zip(factors) {
+        *actual = *given;
+    }
+
     apply_individually_parts(op).iter()
-        .zip(factors).fold(Operator::zero(), |sum, (part, factor)| sum + factor * (*part) )
+        .zip(actual_factors).fold(Operator::zero(), |sum, (part, factor)| sum + factor * (*part) )
 }

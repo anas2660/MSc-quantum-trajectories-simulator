@@ -37,44 +37,48 @@ const MINUS_I: cfp = Complex::new(0.0, -1.0);
 const ZERO:    cfp = Complex::new(0.0, 0.0);
 
 // Initial state probabilities
-const INITIAL_PROBABILITIES: [f64; Operator::SIZE-1] = [
+const INITIAL_PROBABILITIES: [f64; 4] = [
     //0.0, // 00
     //0.45, // 01
     //0.55, // 10
     //0.00  // 11
-    0.30, // 00
-    0.25, // 01
-    0.15, // 10
-    0.30, // 11
+    //0.30, // 00
+    //0.25, // 01
+    //0.15, // 10
+    //0.30, // 11
+    1.0, // 00
+    0.0, // 01
+    0.0, // 10
+    0.0  // 11
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.001;
-const STEP_COUNT: u32 = 5000;
-const THREAD_COUNT: u32 = 14;
-const HIST_BIN_COUNT: usize = 64;
-const SIMULATIONS_PER_THREAD: u32 = 50;
+pub const Δt: fp = 0.0005;
+const STEP_COUNT: u32 = 20000;
+const THREAD_COUNT: u32 = 1;
+const HIST_BIN_COUNT: usize = 32;
+const SIMULATIONS_PER_THREAD: u32 = 1;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
-const κ: fp = 1.2;
-const κ_1: fp = 1.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β: cfp = Complex::new(1.0, 0.0); // Max value is kappa
+const κ: fp = 0.2;
+const κ_1: fp = 0.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β: cfp = Complex::new(5.5, 0.0); // Max value is kappa
 const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
-const η: fp = 0.95;
+const η: fp = 0.96;
 const Φ: fp = 0.0; // c_out phase shift Phi
 const γ_φ: f64 = 0.001;
 //const ddelta: fp = delta_r - delta_s;
-const χ_0: fp = 0.6;
+const χ_0: fp = 0.1;
 const g_0: fp = 24.5; // sqrt(Δ_s_0 χ)
 const ω_r: fp = 2500.0;
-const ω_s_0: fp = 3500.0;
+const ω_s_0: fp = 2520.0;
 //const Δ_s_0: fp = 26318.94506957162;
 
 const ω_b: fp = ω_r;
 //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-const Δ_b: [fp; 2] = [1000.0, 1000.0]; //  ω_b - ω_s
-const Δ_br: fp = 0.0; // ω_b - ω_r
+const Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
+const Δ_br: fp = 10.0; // ω_b - ω_r
 const Δ_r: fp = 0.0;
 const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
 const g: [fp; 2] = [g_0, g_0];
@@ -87,18 +91,20 @@ struct QubitSystem {
     c_out_phased: Lindblad,
     c1: Lindblad,
     c2: Lindblad,
-    c3: [Lindblad; 2],
+    c3: [Lindblad; Operator::QUBIT_COUNT],
     dZ: Complex,
 }
 
 impl QubitSystem {
 
-    fn new(initial_state: InitialState) -> (Self, QuantumCircuit) {
+    fn new<'a>(initial_state: InitialState) -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
-        let σ_plus   = Matrix::new(0.0, 1.0, 0.0, 0.0);
-        let σ_z      = Matrix::new(1.0, 0.0, 0.0, -1.0);
-        let σ_minus  = Matrix::new(0.0, 0.0, 1.0, 0.0);
-        let hadamard = Matrix::new(1.0, 1.0, 1.0, -1.0);
+        let σ_plus   = Matrix::new(0.0, 1.0,  0.0,  0.0);
+        let σ_x      = Matrix::new(0.0, 1.0,  1.0,  0.0);
+        let σ_y      = SC!(0.0,1.0) * Matrix::new(0.0, -1.0, 1.0,  0.0);
+        let σ_z      = Matrix::new(1.0, 0.0,  0.0, -1.0);
+        let σ_minus  = Matrix::new(0.0, 0.0,  1.0,  0.0);
+        let hadamard = Matrix::new(1.0, 1.0,  1.0, -1.0);
         let identity = Operator::identity();
 
         // DISPERSIVE
@@ -113,7 +119,7 @@ impl QubitSystem {
         let N = a.dagger() * a;
 
         // Hamiltonian
-        let term2 = apply_and_scale_individually(Δ_b.zip(χ).map(|(Δ_bs, χ_s)| 0.5*Δ_bs*identity + χ_s*N ), &σ_z);
+        let term2 = apply_and_scale_individually(&Δ_b.zip(χ).map(|(Δ_bs, χ_s)| /**/0.5*Δ_bs*identity + χ_s*N), &σ_z);
 
         let σ_m = apply_individually_parts(&σ_minus);
         let σ_p = apply_individually_parts(&σ_plus);
@@ -130,6 +136,25 @@ impl QubitSystem {
         let H = Δ_br * N + term2 + term3
             + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
 
+
+
+
+        let zero = Matrix::vector(&[1., 0.]);
+        let one  = Matrix::vector(&[0., 1.]);
+
+        let ket1 = &one;
+        let bra1 = &one.transpose();
+        let ket0 = &zero;
+        let bra0 = &zero.transpose();
+
+        //// CNOT 0, 1
+        //let ω = 1000.0;
+        //let cnot = ω * (ket1*bra1).kronecker(&(ket1*bra0 + ket0*bra1)).to_operator();
+
+        // NOT 0
+        let ω_not = 250.0;
+        let not = apply_individually_parts(&(ω_not * &σ_x));
+
         // Remove any non-hermitian numerical error
         let H = 0.5*(H + H.conjugate());
         println!("H:\n{H}");
@@ -137,9 +162,13 @@ impl QubitSystem {
         // Lindblad terms
         let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
 
+        let T = Δt * (STEP_COUNT-1) as fp;
+
         let circuit = QuantumCircuit::new(&[
-            (H, Δt * (STEP_COUNT-1) as fp)
+            (H+not[0], T*0.5),
+            //(H, T*0.5)
         ]);
+
 
         (
             Self {
@@ -155,12 +184,17 @@ impl QubitSystem {
     }
 
     fn lindblad_terms(&self, ρ: &Operator) -> Operator {
-        *Operator::lindblad_term(ρ, &self.c1) // Photon field transmission/losses
-            // .lindblad(ρ, &self.c2) // Decay to ground state
-            .lindblad(ρ, &self.c3[0])
-            .lindblad(ρ, &self.c3[1])
-            .lindblad(ρ, &self.c_out_phased)
-            // .lindblad2(ρ, &self.c_out_phased) // Second order
+        let mut lt = Operator::lindblad_term(ρ, &self.c1); // Photon field transmission/losses
+
+        lt.lindblad(ρ, &self.c_out_phased);
+
+        for c3 in self.c3.iter() {
+            lt.lindblad(ρ, c3);
+        }
+
+        lt
+        // .lindblad(ρ, &self.c2) // Decay to ground state
+        // .lindblad2(ρ, &self.c_out_phased) // Second order
     }
 
     fn stochastic(&self, ρ: &Operator) -> [Operator; 2] {
@@ -283,6 +317,7 @@ let γ_φ = {γ_φ};
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| {
         let input_records_arc = records.clone();
+        let initial_state = initial_state.clone();
         std::thread::spawn( move || {
 
         let mut local = alloc_zero!(ThreadResult);
@@ -365,6 +400,7 @@ let γ_φ = {γ_φ};
 
                 // Do the stochastic rk2 step.
                 system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
+                /////system.euler(H);
 
                 // Normalize rho.
                 system.ρ.normalize();
@@ -476,15 +512,15 @@ let γ_φ = {γ_φ};
 
 
 fn simple() {
-    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES), None);
+    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), None);
 }
 
 fn feed_current_known_state () {
     // Current of known state of |11>
-    let a = simulate::<false, true, false>(InitialState::Probabilites([0.0, 0.45, 0.55, 0.0]), None);
+    let a = simulate::<false, true, false>(InitialState::Probabilites(vec![0.0, 0.45, 0.55, 0.0]), None);
 
     // Feed current into perfect superposition.
-    let b = simulate::<true, false, true>(InitialState::Probabilites([0.25, 0.25, 0.25, 0.25]), Some(a.unwrap().into()));
+    let b = simulate::<true, false, true>(InitialState::Probabilites(vec![0.25, 0.25, 0.25, 0.25]), Some(a.unwrap().into()));
 }
 
 fn main() {
@@ -494,7 +530,8 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     let start = std::time::Instant::now();
-    feed_current_known_state();
+    //feed_current_known_state();
+    simple();
     let elapsed = start.elapsed().as_millis();
 
     println!(

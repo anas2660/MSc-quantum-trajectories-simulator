@@ -9,11 +9,11 @@ use crate::{num::*, lindblad::Lindblad};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Operator {
-    pub elements: [[Complex; 5]; 5],
+    pub elements: [[Complex; Operator::SIZE]; Operator::SIZE],
 }
 
 impl Operator {
-    pub const QUBIT_COUNT: usize = 2;
+    pub const QUBIT_COUNT: usize = 1;
     pub const SIZE: usize = (1 << Operator::QUBIT_COUNT) + 1;
     //pub const IDENTITY: Self = Operator::identity();
 
@@ -36,17 +36,17 @@ impl Operator {
         result
     }
 
-    pub fn new(r0: &[Complex], r1: &[Complex], r2: &[Complex], r3: &[Complex]) -> Self {
-        Operator {
-            elements: [
-                r0.try_into().unwrap(),
-                r1.try_into().unwrap(),
-                r2.try_into().unwrap(),
-                r3.try_into().unwrap(),
-                [C!(0.0); Operator::SIZE]
-            ],
-        }
-    }
+    //pub fn new(r0: &[Complex], r1: &[Complex], r2: &[Complex], r3: &[Complex]) -> Self {
+    //    Operator {
+    //        elements: [
+    //            r0.try_into().unwrap(),
+    //            r1.try_into().unwrap(),
+    //            r2.try_into().unwrap(),
+    //            r3.try_into().unwrap(),
+    //            [C!(0.0); Operator::SIZE]
+    //        ],
+    //    }
+    //}
 
     pub fn from_fn<F: Fn(usize, usize) -> Complex>(f: F) -> Self {
         let mut result = Operator::uninitialized();
