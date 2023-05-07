@@ -97,7 +97,7 @@ struct QubitSystem {
 
 impl QubitSystem {
 
-    fn new<'a>(initial_state: InitialState) -> (Self, QuantumCircuit) {
+    fn new(initial_state: InitialState) -> (Self, QuantumCircuit) {
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0,  0.0,  0.0);
         let σ_x      = Matrix::new(0.0, 1.0,  1.0,  0.0);
