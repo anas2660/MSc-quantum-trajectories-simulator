@@ -1,4 +1,9 @@
 #!/usr/bin/python
+
+from matplotlib import colors
+from matplotlib import pyplot as plt, cm
+
+
 import glob
 files = glob.glob("results/*trajectories*")
 files.sort()
@@ -10,6 +15,11 @@ import matplotlib.pyplot as plt
 
 
 float_type = np.float32
+
+
+
+#hist_colormap = cm.Blues
+hist_colormap = cm.turbo
 
 
 
@@ -78,13 +88,10 @@ hist_step_count = hist_metadata[1]
 hist_height = hist_metadata[2]
 hist_data = np.reshape(np.frombuffer(hist_data_buffer, np.uint32, offset=12), (hist_step_count, hist_height))
 
-from matplotlib import colors
-from matplotlib import pyplot as plt, cm
-
 fig, ax = plt.subplots()
 print(np.max(hist_data))
 im = ax.imshow(np.swapaxes(np.minimum(hist_data + np.min(hist_data[hist_data>0]), 10000000), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
-               cmap=cm.turbo,
+               cmap=hist_colormap,
                norm=colors.LogNorm()
                )
 ax.set_xlabel("Time")
