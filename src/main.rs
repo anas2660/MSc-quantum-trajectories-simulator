@@ -53,8 +53,8 @@ const INITIAL_PROBABILITIES: [f64; 4] = [
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.0005;
-const STEP_COUNT: u32 = 20000;
+pub const Δt: fp = 0.00005;
+const STEP_COUNT: u32 = 2000;
 const THREAD_COUNT: u32 = 1;
 const HIST_BIN_COUNT: usize = 32;
 const SIMULATIONS_PER_THREAD: u32 = 1;
@@ -63,7 +63,7 @@ const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 // Physical constants
 const κ: fp = 0.2;
 const κ_1: fp = 0.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β: cfp = Complex::new(5.5, 0.0); // Max value is kappa
+const β: cfp = Complex::new(2.75000, 0.0); // Max value is kappa
 const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
 const η: fp = 0.96;
 const Φ: fp = 0.0; // c_out phase shift Phi
@@ -83,6 +83,8 @@ const Δ_r: fp = 0.0;
 const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
 const g: [fp; 2] = [g_0, g_0];
 
+
+const ω_not: f64 = 500.0;
 const NOISE_FACTOR: fp = 1.0;
 
 #[derive(Clone)]
@@ -152,7 +154,6 @@ impl QubitSystem {
         //let cnot = ω * (ket1*bra1).kronecker(&(ket1*bra0 + ket0*bra1)).to_operator();
 
         // NOT 0
-        let ω_not = 250.0;
         let not = apply_individually_parts(&(ω_not * &σ_x));
 
         // Remove any non-hermitian numerical error
@@ -165,7 +166,7 @@ impl QubitSystem {
         let T = Δt * (STEP_COUNT-1) as fp;
 
         let circuit = QuantumCircuit::new(&[
-            (H+not[0], T*0.5),
+            (H + not[0], T*0.5),
             //(H, T*0.5)
         ]);
 
@@ -241,6 +242,9 @@ impl QubitSystem {
     }
 }
 
+
+
+
 #[derive(Clone, Copy)]
 struct MeasurementRecords {
     measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
@@ -273,6 +277,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     let mut hist_file        = create_output_file("hist.dat");
     let mut current_file     = create_output_file("currents.dat");
     let mut final_state_file = create_output_file("final_state.dat");
+    let mut fidelity_file    = create_output_file("fidelity.dat");
 
     // FIXME
     parameter_file
@@ -312,7 +317,8 @@ let γ_φ = {γ_φ};
         trajectory_hist: [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
         current_sum: [Complex; SIMULATIONS_PER_THREAD as usize],
         final_states: [StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
-        measurements: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
+        measurements: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>,
+        fidelities: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
     let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| {
@@ -322,11 +328,15 @@ let γ_φ = {γ_φ};
 
         let mut local = alloc_zero!(ThreadResult);
         let mut measurements = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
+        let mut fidelities = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
         let input_records = &input_records_arc;
 
         // Start the timer.
         let now = std::time::Instant::now();
         let mut total_section_time = 0;
+
+        // Calculate ideal ρ.
+        let ideal_ρ = get_ideal_ρ(&initial_state);
 
         // Create initial system.
         let (initial_system, circuit) = QubitSystem::new(initial_state);
@@ -341,8 +351,6 @@ let γ_φ = {γ_φ};
         // sqrt(dt) is to make the variance σ = dt
         let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * NOISE_FACTOR);
         println!("sqrtηdt: {sqrtηdt:?}");
-
-
 
         for simulation in 0..SIMULATIONS_PER_THREAD {
             // Initialize system
@@ -359,6 +367,7 @@ let γ_φ = {γ_φ};
             let (mut H, mut steps_to_next_gate) = circuit_state.next();
 
             let current_measurements = &mut measurements[simulation as usize];
+            let fidelities = &mut fidelities[simulation as usize];
 
             // Do 2000 steps.
             for step in 0..STEP_COUNT as usize {
@@ -405,6 +414,10 @@ let γ_φ = {γ_φ};
                 // Normalize rho.
                 system.ρ.normalize();
 
+                // Compute fidelity.
+                let fidelity_part = (system.ρ*ideal_ρ).trace();
+                fidelities[step] = fidelity_part*fidelity_part;
+
                 // Compute current.
                 const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
                 let dI = Complex {
@@ -441,6 +454,7 @@ let γ_φ = {γ_φ};
         }
 
         local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
+        local.fidelities = Some(fidelities);
 
         local
     })}).collect();
@@ -450,7 +464,7 @@ let γ_φ = {γ_φ};
     let mut measurements = alloc_zero!(MeasurementRecords);
 
     // Wait for threads
-
+    let mut fidelites = Vec::new();
     for (i, tt) in threads.into_iter().enumerate() {
         let local = tt.join().unwrap();
         for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
@@ -482,6 +496,10 @@ let γ_φ = {γ_φ};
             let b = (i+1) * SIMULATIONS_PER_THREAD as usize;
             measurements.measurements[a..b].copy_from_slice(&m[..]);
         }
+
+        if let Some(f) = local.fidelities {
+            fidelites.extend_from_slice(f.as_slice());
+        }
     }
 
     for s in trajectory_average.iter_mut() {
@@ -505,6 +523,18 @@ let γ_φ = {γ_φ};
         }
     }
     hist_file.write_all(&buffer).unwrap();
+
+    buffer.clear();
+    if fidelites.len() > 0 {
+        for lane in 0..V::LANES {
+            for sim in fidelites.iter() {
+                for f in sim.iter() {
+                    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
+                }
+            }
+        }
+        fidelity_file.write_all(&buffer).unwrap();
+    }
 
     if RETURN_RECORDS { Some(measurements) } else { None }
 }

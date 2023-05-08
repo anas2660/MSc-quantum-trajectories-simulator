@@ -1,3 +1,4 @@
+use crate::helpers::apply_individually_parts;
 use crate::num::*;
 use crate::operator::*;
 use crate::matrix::*;
@@ -24,16 +25,17 @@ pub struct Hamiltonian {
     H: Operator
 }
 
-fn solve_analytically(H: &Matrix) -> Operator {
-    let mut current_Δt = crate::Δt as f64;
-
+fn solve_analytically(H: &Operator, time_step: f64) -> Hamiltonian {
+    let mut current_Δt = time_step;
+    let H: Matrix = (*H).into();
+    let H = &H;
     for attempt in 1..32 {
         println!("attempt {attempt}");
         println!("current Δt {current_Δt}");
-        let result = (SC!(0.0,-current_Δt)*H).budget_matrix_exponential();
+        let result = (SC!(0.0,-current_Δt/2.0)*H).budget_matrix_exponential();
         if let Ok(result) = result  {
             println!("Ok(result) = \n{}", result);
-            return result.pow(1<<attempt).to_operator();
+            return Hamiltonian { H: result.pow(1<<attempt).to_operator() };
         }
 
         match result {
@@ -48,6 +50,13 @@ fn solve_analytically(H: &Matrix) -> Operator {
 }
 
 
+pub fn get_ideal_ρ(initial_state: &crate::initial_state::InitialState) -> Operator {
+    let initial_state: Operator = initial_state.clone().into();
+    let σ_x = Matrix::new(0.0, 1.0, 1.0,  0.0);
+    let applied = apply_individually_parts(&σ_x)[0];
+    applied*initial_state*applied
+}
+
 impl Hamiltonian {
 
     #[inline]
@@ -56,6 +65,9 @@ impl Hamiltonian {
     }
 
 }
+
+
+
 
 
 impl QuantumCircuit {
@@ -79,8 +91,7 @@ impl QuantumCircuit {
 
         let mut circuit_time = 0.0;
         for (H, t) in gates {
-            let Hmat: Matrix = (*H).into();
-            ops.push(QuantumGate { hamiltonian: Hamiltonian { H: solve_analytically(&Hmat) }, steps: (*t/crate::Δt) as usize });
+            ops.push(QuantumGate { hamiltonian: solve_analytically(&H, crate::Δt as f64), steps: (*t/crate::Δt) as usize });
             println!("p:\n{}", ops.last().unwrap().hamiltonian.H);
             circuit_time += t;
         }
