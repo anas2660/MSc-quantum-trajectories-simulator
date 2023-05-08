@@ -2,16 +2,14 @@
 
 from matplotlib import colors
 from matplotlib import pyplot as plt, cm
-
-
 import glob
+import numpy as np
+import matplotlib.pyplot as plt
+
 files = glob.glob("results/*trajectories*")
 files.sort()
 filename = files[-1]
 
-
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 float_type = np.float32
@@ -118,6 +116,7 @@ current_metadata = np.frombuffer(current_data_buffer, np.uint32, count=1)
 current_simulations = current_metadata[0]
 current_data = np.reshape(np.frombuffer(current_data_buffer, float_type, offset=4), (current_simulations, 2))
 
+
 files = glob.glob("results/*final_state*")
 files.sort()
 filename = files[-1]
@@ -211,6 +210,26 @@ slider.on_changed(update2)
 plt.show()
 
 
+
+# Current plot data
+files = glob.glob("results/*fidelity*")
+files.sort()
+filename = files[-1]
+
+fidelity_data_buffer = open(filename, "rb").read()
+#fidelity_metadata = np.frombuffer(fidelity_data_buffer, np.uint32, count=1)
+fidelity_simulations = current_simulations
+fidelity_data = np.reshape(np.frombuffer(fidelity_data_buffer, float_type, offset=0), (fidelity_simulations, hist_step_count-1))
+
+plt.title("Fidelity of $\sigma_x$");
+for i in range(fidelity_simulations):
+    plt.plot(t[1:], fidelity_data[i], label = "Sim " + str(i))
+plt.ylim(0,1)
+plt.grid()
+plt.legend()
+plt.show()
+
+# (current_simulations, state_count)
 
 # TODO fix memory leak
 if False:
