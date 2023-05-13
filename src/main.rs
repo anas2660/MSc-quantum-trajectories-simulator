@@ -53,26 +53,26 @@ const INITIAL_PROBABILITIES: [f64; 4] = [
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.00005;
-const STEP_COUNT: u32 = 2000;
-const THREAD_COUNT: u32 = 1;
+pub const Δt: fp = 0.000005;
+const STEP_COUNT: u32 = 628;
+const THREAD_COUNT: u32 = 12;
 const HIST_BIN_COUNT: usize = 32;
-const SIMULATIONS_PER_THREAD: u32 = 1;
+const SIMULATIONS_PER_THREAD: u32 = 100;
 const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
 
 // Physical constants
-const κ: fp = 0.2;
-const κ_1: fp = 0.2; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β: cfp = Complex::new(2.75000, 0.0); // Max value is kappa
+const κ: fp = 0.5;
+const κ_1: fp = 0.5; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+const β: cfp = Complex::new(4.0, 0.0); // Max value is kappa
 const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
 const η: fp = 0.96;
 const Φ: fp = 0.0; // c_out phase shift Phi
 const γ_φ: f64 = 0.001;
 //const ddelta: fp = delta_r - delta_s;
+const g_0: fp = 10.0; // sqrt(Δ_s_0 χ)
 const χ_0: fp = 0.1;
-const g_0: fp = 24.5; // sqrt(Δ_s_0 χ)
 const ω_r: fp = 2500.0;
-const ω_s_0: fp = 2520.0;
+const ω_s_0: fp = ω_r + g_0 * g_0 / χ_0;
 //const Δ_s_0: fp = 26318.94506957162;
 
 const ω_b: fp = ω_r;
