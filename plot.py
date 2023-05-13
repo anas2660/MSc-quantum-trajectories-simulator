@@ -11,13 +11,12 @@ files.sort()
 filename = files[-1]
 
 
+omega = 500
 
 float_type = np.float32
 
-
-
-#hist_colormap = cm.Blues
-hist_colormap = cm.turbo
+hist_colormap = cm.Blues
+#hist_colormap = cm.turbo
 
 
 
@@ -222,12 +221,20 @@ fidelity_simulations = current_simulations
 fidelity_data = np.reshape(np.frombuffer(fidelity_data_buffer, float_type, offset=0), (fidelity_simulations, hist_step_count-1))
 
 plt.title("Fidelity of $\sigma_x$");
+actual_fidelities = np.zeros((fidelity_simulations))
 for i in range(fidelity_simulations):
     plt.plot(t[1:], fidelity_data[i], label = "Sim " + str(i))
+    dt = t[1]-t[0]
+    actual_fidelities[i] = fidelity_data[i][int(np.floor(np.pi/(2*omega*dt)))]
+    print("The fidelity of sim", i, "is", actual_fidelities)
+
 plt.ylim(0,1)
 plt.grid()
 plt.legend()
 plt.show()
+
+print("Fidelity average:", np.mean(actual_fidelities))
+print("Fidelity standard deviation:", np.std(actual_fidelities))
 
 # (current_simulations, state_count)
 
