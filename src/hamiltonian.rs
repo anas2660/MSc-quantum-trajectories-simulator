@@ -32,10 +32,10 @@ fn solve_analytically(H: &Operator, time_step: f64) -> Hamiltonian {
     for attempt in 1..32 {
         println!("attempt {attempt}");
         println!("current Δt {current_Δt}");
-        let result = (SC!(0.0,-current_Δt/2.0)*H).budget_matrix_exponential();
+        let result = (SC!(0.0,-current_Δt)*H).budget_matrix_exponential();
         if let Ok(result) = result  {
             println!("Ok(result) = \n{}", result);
-            return Hamiltonian { H: result.pow(1<<attempt).to_operator() };
+            return Hamiltonian { H: result.pow(1<<(attempt-1)).to_operator() };
         }
 
         match result {
