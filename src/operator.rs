@@ -14,7 +14,7 @@ pub struct Operator {
 
 impl Operator {
     pub const QUBIT_COUNT: usize = 1;
-    pub const SIZE: usize = (1 << Operator::QUBIT_COUNT) + 1;
+    pub const SIZE: usize = (1 << Operator::QUBIT_COUNT);
     //pub const IDENTITY: Self = Operator::identity();
 
     #[inline(always)]
