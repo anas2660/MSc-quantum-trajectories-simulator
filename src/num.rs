@@ -1,4 +1,4 @@
-use std::{ops::{DivAssign, Neg}, simd::StdFloat, arch::x86_64::{_mm256_cvtepi32_ps, _mm256_cvtepi32_pd}};
+use std::{ops::{DivAssign, Neg}, simd::{StdFloat, SimdFloat}, arch::x86_64::{_mm256_cvtepi32_ps, _mm256_cvtepi32_pd}};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -186,8 +186,18 @@ impl Complex {
     }
 
     #[inline]
+    pub fn magnitude_squared(self) -> Real {
+        self.real.mul_add(self.real, self.imag * self.imag)
+    }
+
+    #[inline]
+    pub fn magnitude(self) -> Real {
+        self.magnitude_squared().sqrt()
+    }
+
+    #[inline]
     pub fn inverse(self) -> Self {
-        let denom = V::splat(1.0)/(self.real.mul_add(self.real, self.imag * self.imag));
+        let denom = V::splat(1.0)/self.magnitude_squared();
         Complex {
             real:  self.real * denom,
             imag: -self.imag * denom,
@@ -199,11 +209,11 @@ impl Complex {
         let x = self.real;
         let y = self.imag;
         let half = Real::splat(0.5);
-        let length = (x*x + y*y).sqrt();
+        let magnitude = self.magnitude();
 
         Complex {
-            real: (half*(length + x)).sqrt(),
-            imag: (half*(length - x)).sqrt() * y.signum()
+            real: (half*(magnitude + x)).sqrt(),
+            imag: (half*(magnitude - x)).sqrt() * y.signum()
         }
     }
 
