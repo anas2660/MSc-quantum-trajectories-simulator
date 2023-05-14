@@ -22,6 +22,11 @@ mod initial_state;
 use initial_state::*;
 mod helpers;
 use helpers::*;
+mod config;
+use config::*;
+mod multivec;
+use multivec::*;
+
 
 use rand_distr::StandardNormal;
 use std::{io::Write, sync::Arc};
@@ -54,34 +59,57 @@ const INITIAL_PROBABILITIES: [f64; 4] = [
 
 // Simulation constants
 pub const Δt: fp = 0.000005;
-const STEP_COUNT: u32 = 628;
-const THREAD_COUNT: u32 = 12;
+
+const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
+    step_count: 628,
+    thread_count: 12,
+    simulations_per_thread: 100,
+
+    // Physical constants
+    κ: 0.5,
+    κ_1: 0.5, // NOTE:
+    β: Complex::new(4.0, 0.0), // Max value is kappa
+    γ_dec: 563.9773943, // should be g^2/ω    (174) side 49
+    η: 0.96,
+    Φ: 0.0,    // c_out phase shift Phi
+    γ_φ: 0.001,
+    g_0: 10.0, // sqrt(Δ_s_0 χ)
+    χ_0: 0.1,
+    ω_r: 2500.0,
+
+    Δ_r: 0.0,
+    Δ_br: 10.0, // ω_b - ω_r
+};
+
+const SIMULATION_COUNT: u32 = DEFAULT_CONFIG.thread_count * DEFAULT_CONFIG.simulations_per_thread;
+
 const HIST_BIN_COUNT: usize = 32;
-const SIMULATIONS_PER_THREAD: u32 = 100;
-const SIMULATION_COUNT: u32 = THREAD_COUNT * SIMULATIONS_PER_THREAD;
+//const STEP_COUNT: u32 = 628;
+//const THREAD_COUNT: u32 = 12;
+//const SIMULATIONS_PER_THREAD: u32 = 100;
 
 // Physical constants
-const κ: fp = 0.5;
-const κ_1: fp = 0.5; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
-const β: cfp = Complex::new(4.0, 0.0); // Max value is kappa
-const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
-const η: fp = 0.96;
-const Φ: fp = 0.0; // c_out phase shift Phi
-const γ_φ: f64 = 0.001;
-//const ddelta: fp = delta_r - delta_s;
-const g_0: fp = 10.0; // sqrt(Δ_s_0 χ)
-const χ_0: fp = 0.1;
-const ω_r: fp = 2500.0;
-const ω_s_0: fp = ω_r + g_0 * g_0 / χ_0;
-//const Δ_s_0: fp = 26318.94506957162;
-
-const ω_b: fp = ω_r;
-//const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-const Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
-const Δ_br: fp = 10.0; // ω_b - ω_r
-const Δ_r: fp = 0.0;
-const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
-const g: [fp; 2] = [g_0, g_0];
+// const κ: fp = 0.5;
+// const κ_1: fp = 0.5; // NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
+// const β: cfp = Complex::new(4.0, 0.0); // Max value is kappa
+// const γ_dec: f64 = 563.9773943; // should be g^2/ω    (174) side 49
+// const η: fp = 0.96;
+// const Φ: fp = 0.0; // c_out phase shift Phi
+// const γ_φ: f64 = 0.001;
+// //const ddelta: fp = delta_r - delta_s;
+// const g_0: fp = 10.0; // sqrt(Δ_s_0 χ)
+// const χ_0: fp = 0.1;
+// const ω_r: fp = 2500.0;
+//////////////const ω_s_0: fp = ω_r + g_0 * g_0 / χ_0;
+////////////////const Δ_s_0: fp = 26318.94506957162;
+//////////////
+//////////////const ω_b: fp = ω_r;
+////////////////const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
+//////////////const Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
+//////////////const Δ_br: fp = 10.0; // ω_b - ω_r
+//////////////const Δ_r: fp = 0.0;
+//////////////const χ: [fp; 2] = [χ_0 + 0.00, χ_0 - 0.00];
+//////////////const g: [fp; 2] = [g_0, g_0];
 
 
 const ω_not: f64 = 500.0;
@@ -99,7 +127,9 @@ struct QubitSystem {
 
 impl QubitSystem {
 
-    fn new(initial_state: InitialState) -> (Self, QuantumCircuit) {
+    fn new(initial_state: InitialState, config: &SimulationConfig) -> (Self, QuantumCircuit) {
+        let c = config;
+
         #[allow(unused_variables)]
         let σ_plus   = Matrix::new(0.0, 1.0,  0.0,  0.0);
         let σ_x      = Matrix::new(0.0, 1.0,  1.0,  0.0);
@@ -109,11 +139,19 @@ impl QubitSystem {
         let hadamard = Matrix::new(1.0, 1.0,  1.0, -1.0);
         let identity = Operator::identity();
 
+        // TODO: Add offsets to config
+        //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
+        let Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
+        //let Δ_r: fp = 0.0;
+        let χ: [fp; 2] = [config.χ_0 + 0.00, config.χ_0 - 0.00];
+        let g: [fp; 2] = [config.g_0, config.g_0];
+
+
         // DISPERSIVE
         let a = Operator::from_fn(|r, c| {
             (r==c) as u32 as fp
-                * (2.*κ_1).sqrt() * β
-                / (Δ_r + κ + I*χ.iter().enumerate().fold(0.0, |acc, (n, χ_n)| {
+                * (2.*config.κ_1).sqrt() * config.β
+                / (config.Δ_r + config.κ + I*χ.iter().enumerate().fold(0.0, |acc, (n, χ_n)| {
                     acc - (((c>>n)&1) as i32 * 2 - 1) as fp * χ_n // TODO: Check this
             }))
         });
@@ -135,11 +173,8 @@ impl QubitSystem {
             }
         }
 
-        let H = Δ_br * N + term2 + term3
-            + I*(2.0 * κ_1).sqrt() * (β * a.dagger() - β.conjugate() * a); // Detuning
-
-
-
+        let H = c.Δ_br * N + term2 + term3
+            + I*(2.0 * c.κ_1).sqrt() * (c.β * a.dagger() - c.β.conjugate() * a); // Detuning
 
         let zero = Matrix::vector(&[1., 0.]);
         let one  = Matrix::vector(&[0., 1.]);
@@ -161,23 +196,22 @@ impl QubitSystem {
         println!("H:\n{H}");
 
         // Lindblad terms
-        let c_out = (κ_1 * 2.0).sqrt() * a - β * identity;
+        let c_out = (c.κ_1 * 2.0).sqrt() * a - c.β * identity;
 
-        let T = Δt * (STEP_COUNT-1) as fp;
+        let T = Δt * (c.step_count-1) as fp;
 
         let circuit = QuantumCircuit::new(&[
             (H + not[0], T*0.5),
             //(H, T*0.5)
-        ]);
-
+        ], c);
 
         (
             Self {
                 ρ: initial_state.into(),
-                c_out_phased: Lindblad::new(c_out * ((I * Φ).exp())),
-                c1: Lindblad::new((2.0 * κ).sqrt() * a),
-                c2: Lindblad::new(apply_individually(&(γ_dec.sqrt() * &σ_minus))),
-                c3: apply_individually_parts(&((γ_φ / 2.0).sqrt() * &σ_z)).map(Lindblad::new),
+                c_out_phased: Lindblad::new(c_out * ((I * c.Φ).exp())),
+                c1: Lindblad::new((2.0 * c.κ).sqrt() * a),
+                c2: Lindblad::new(apply_individually(&(c.γ_dec.sqrt() * &σ_minus))),
+                c3: apply_individually_parts(&((c.γ_φ / 2.0).sqrt() * &σ_z)).map(Lindblad::new),
                 dZ: Complex::new(0.0, 0.0),
             },
             circuit
@@ -245,13 +279,13 @@ impl QubitSystem {
 
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct MeasurementRecords {
-    measurements: [[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
+    measurements: MVec<Complex> //[[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
 }
 
-fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>
-    (initial_state: InitialState, records: Option<Arc<MeasurementRecords>>) -> Option<Box<MeasurementRecords>> {
+fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(initial_state: InitialState, config: &SimulationConfig, records: Option<Arc<MeasurementRecords>>)
+     -> Option<Box<MeasurementRecords>> {
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -279,20 +313,20 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     let mut final_state_file = create_output_file("final_state.dat");
     let mut fidelity_file    = create_output_file("fidelity.dat");
 
-    // FIXME
-    parameter_file
-        .write_all(
-            format!(
-"let β = {β};
-let Δ_r = {Δ_r};
-let κ = {κ};
-let κ_1 = {κ_1};
-let η = {η};
-let Φ = {Φ};
-let γ_dec = {γ_dec};
-let γ_φ = {γ_φ};
-").as_bytes(),
-        ).unwrap();
+    // FIXME // TODO:
+//    parameter_file
+//        .write_all(
+//            format!(
+//"let β = {β};
+//let Δ_r = {Δ_r};
+//let κ = {κ};
+//let κ_1 = {κ_1};
+//let η = {η};
+//let Φ = {Φ};
+//let γ_dec = {γ_dec};
+//let γ_φ = {γ_φ};
+//").as_bytes(),
+//        ).unwrap();
 
     // metadata
     current_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
@@ -306,172 +340,204 @@ let γ_φ = {γ_φ};
 
     data_file.write_all(&(SIMULATION_COUNT * Real::LANES as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
-    data_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
+    data_file.write_all(&(config.step_count + 1).to_le_bytes()).unwrap();
 
     hist_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
-    hist_file.write_all(&(STEP_COUNT + 1).to_le_bytes()).unwrap();
+    hist_file.write_all(&(config.step_count + 1).to_le_bytes()).unwrap();
     hist_file.write_all(&(HIST_BIN_COUNT as u32 * Operator::SIZE as u32).to_le_bytes()).unwrap();
 
     struct ThreadResult {
-        trajectory_sum:  [StateProbabilitiesSimd; STEP_COUNT as usize+1],
-        trajectory_hist: [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
-        current_sum: [Complex; SIMULATIONS_PER_THREAD as usize],
-        final_states: [StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
-        measurements: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>,
-        fidelities: Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
+        trajectory_sum: Vec<StateProbabilitiesSimd>, // [StateProbabilitiesSimd; STEP_COUNT as usize+1],
+        trajectory_hist: MVec<Histogram<HIST_BIN_COUNT>>, // [[Histogram<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1],
+        current_sum: Vec<Complex>, //[Complex; SIMULATIONS_PER_THREAD as usize],
+        final_states: Vec<StateProbabilitiesSimd>, //[StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
+        measurements: Option<MVec<Complex>>, // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>,
+        fidelities: Option<MVec<Complex>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
-    let threads: Vec<_> = (0..THREAD_COUNT).map(|thread_id| {
-        let input_records_arc = records.clone();
-        let initial_state = initial_state.clone();
-        std::thread::spawn( move || {
+    let (tx, rx) = std::sync::mpsc::channel();
 
-        let mut local = alloc_zero!(ThreadResult);
-        let mut measurements = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
-        let mut fidelities = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
-        let input_records = &input_records_arc;
+    std::thread::scope(|s|{
+        for thread_id in 0..config.thread_count {
+            let input_records_arc = records.clone();
+            let initial_state = initial_state.clone();
+            let tx = tx.clone();
+            s.spawn(move || {
 
-        // Start the timer.
-        let now = std::time::Instant::now();
-        let mut total_section_time = 0;
-
-        // Calculate ideal ρ.
-        let ideal_ρ = get_ideal_ρ(&initial_state);
-
-        // Create initial system.
-        let (initial_system, circuit) = QubitSystem::new(initial_state);
-
-        // RNG
-        let mut rng = thread_rng();
-
-        // S generator
-        let mut S = SGenerator::new(&mut rng);
-
-        // sqrt(η/2) is from the definition of dZ.
-        // sqrt(dt) is to make the variance σ = dt
-        let sqrtηdt = Real::splat((η * 0.5).sqrt() * Δt.sqrt() * NOISE_FACTOR);
-        println!("sqrtηdt: {sqrtηdt:?}");
-
-        for simulation in 0..SIMULATIONS_PER_THREAD {
-            // Initialize system
-            let mut system = initial_system.clone();
-            let mut circuit_state = circuit.make_new_state();
-            let mut t = Δt;
-
-            let c = system.c_out_phased.c;
-            let x = c + c.dagger();
-            let y = MINUS_I*(c - c.dagger());
-
-            let mut J = ZERO;
-
-            let (mut H, mut steps_to_next_gate) = circuit_state.next();
-
-            let current_measurements = &mut measurements[simulation as usize];
-            let fidelities = &mut fidelities[simulation as usize];
-
-            // Do 2000 steps.
-            for step in 0..STEP_COUNT as usize {
-
-                if steps_to_next_gate == 0 {
-                    (H, steps_to_next_gate) = circuit_state.next();
-                }
-                steps_to_next_gate -= 1;
-
-                // Write current state.
-                let P = system.ρ.get_probabilites_simd();
-                local.trajectory_sum[step].add(&P);
-                for (i, p) in P.v.iter().enumerate() {
-                    local.trajectory_hist[step][i].add_values(p);
-                }
-
-                // TODO: DELETE
-                // assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
-
-                // Get a dZ value.
-                if CUSTOM_RECORDS {
-                    let dI = input_records.as_ref().unwrap().measurements[thread_id as usize * SIMULATIONS_PER_THREAD as usize + simulation as usize][step];
-
-                    let to_sub = Complex {
-                        real: (x*system.ρ).trace().real,
-                        imag: (y*system.ρ).trace().real
-                    };
-
-                    const DT_OVER_SQRT2: Real = Real::from_array([Δt/SQRT_2; Real::LANES]);
-                    system.dZ = DT_OVER_SQRT2 * &(dI - to_sub);
-                } else {
-                    // Sample on the normal distribution.
-                    for lane in 0..Real::LANES {
-                        system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
-                        system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
-                    }
-                    system.dZ *= &sqrtηdt;
-                }
-
-                // Do the stochastic rk2 step.
-                system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
-                /////system.euler(H);
-
-                // Normalize rho.
-                system.ρ.normalize();
-
-                // Compute fidelity.
-                let fidelity_part = (system.ρ*ideal_ρ).trace();
-                fidelities[step] = fidelity_part*fidelity_part;
-
-                // Compute current.
-                const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
-                let dI = Complex {
-                    real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
-                    imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.imag
+                //let mut local = alloc_zero!(ThreadResult);
+                let mut local = ThreadResult {
+                    trajectory_sum: Vec::with_capacity(config.step_count as usize + 1),
+                    trajectory_hist: unsafe { MVec::alloc_zeroed(config.step_count as usize+1, Operator::SIZE) },
+                    current_sum: Vec::with_capacity(config.simulations_per_thread as usize),
+                    final_states: Vec::with_capacity(config.simulations_per_thread as usize),
+                    measurements: None,
+                    fidelities: None
                 };
+                unsafe {
+                    local.trajectory_sum.set_len(config.step_count as usize + 1);
+                    local.trajectory_sum.iter_mut().for_each(|s| *s = std::mem::zeroed() );
+                }
 
-                J += dI;
-                current_measurements[step] = dI;
+                //let mut measurements =  alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
+                //let mut fidelities    = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
+                let mut measurements = unsafe {MVec::alloc_zeroed(config.simulations_per_thread as usize, config.step_count as usize)};
+                let mut fidelities = unsafe {MVec::alloc_zeroed(config.simulations_per_thread as usize, config.step_count as usize)};
+                let input_records = &input_records_arc;
 
-                t += Δt;
-            }
+                // Start the timer.
+                let now = std::time::Instant::now();
+                let mut total_section_time = 0;
 
-            // Write last state.
-            let P = system.ρ.get_probabilites_simd();
-            local.trajectory_sum[STEP_COUNT as usize].add(&P);
-            for (i, p) in P.v.iter().enumerate() {
-                local.trajectory_hist[STEP_COUNT as usize][i].add_values(p);
-            }
+                // Calculate ideal ρ.
+                let ideal_ρ = get_ideal_ρ(&initial_state);
 
-            local.current_sum[simulation as usize] = J;
-            local.final_states[simulation as usize] = P;
+                // Create initial system.
+                let (initial_system, circuit) = QubitSystem::new(initial_state, config);
+
+                // RNG
+                let mut rng = thread_rng();
+
+                // S generator
+                let mut S = SGenerator::new(&mut rng);
+
+                // sqrt(η/2) is from the definition of dZ.
+                // sqrt(dt) is to make the variance σ = dt
+                let sqrtηdt = Real::splat((config.η * 0.5).sqrt() * Δt.sqrt() * NOISE_FACTOR);
+                println!("sqrtηdt: {sqrtηdt:?}");
+
+                for simulation in 0..config.simulations_per_thread {
+                    // Initialize system
+                    let mut system = initial_system.clone();
+                    let mut circuit_state = circuit.make_new_state();
+                    let mut t = Δt;
+
+                    let c = system.c_out_phased.c;
+                    let x = c + c.dagger();
+                    let y = MINUS_I*(c - c.dagger());
+
+                    let mut J = ZERO;
+
+                    let (mut H, mut steps_to_next_gate) = circuit_state.next();
+
+                    let current_measurements = &mut measurements[simulation as usize];
+                    let fidelities = &mut fidelities[simulation as usize];
+
+                    // Do 2000 steps.
+                    for step in 0..config.step_count as usize {
+
+                        if steps_to_next_gate == 0 {
+                            (H, steps_to_next_gate) = circuit_state.next();
+                        }
+                        steps_to_next_gate -= 1;
+
+                        // Write current state.
+                        let P = system.ρ.get_probabilites_simd();
+                        local.trajectory_sum[step].add(&P);
+                        for (i, p) in P.v.iter().enumerate() {
+                            local.trajectory_hist[step][i].add_values(p);
+                        }
+
+                        // TODO: DELETE
+                        // assert_eq!((system.rho[(0, 0)].imag()*system.rho[(0, 0)].imag()).simd_lt(Real::splat(0.02)).to_bitmask(), 255);
+
+                        // Get a dZ value.
+                        if CUSTOM_RECORDS {
+                            let dI = input_records.as_ref().unwrap().measurements[thread_id as usize * config.simulations_per_thread as usize + simulation as usize][step];
+
+                            let to_sub = Complex {
+                                real: (x*system.ρ).trace().real,
+                                imag: (y*system.ρ).trace().real
+                            };
+
+                            const DT_OVER_SQRT2: Real = Real::from_array([Δt/SQRT_2; Real::LANES]);
+                            system.dZ = DT_OVER_SQRT2 * &(dI - to_sub);
+                        } else {
+                            // Sample on the normal distribution.
+                            for lane in 0..Real::LANES {
+                                system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
+                                system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
+                            }
+                            system.dZ *= &sqrtηdt;
+                        }
+
+                        // Do the stochastic rk2 step.
+                        system.srk2(H, [S.gen(&mut rng), S.gen(&mut rng)]);
+                        /////system.euler(H);
+
+                        // Normalize rho.
+                        system.ρ.normalize();
+
+                        // Compute fidelity.
+                        let fidelity_part = (system.ρ*ideal_ρ).sqrt().trace();
+                        fidelities[step] = fidelity_part*fidelity_part;
+
+                        // Compute current.
+                        const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
+                        let dI = Complex {
+                            real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
+                            imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.imag
+                        };
+
+                        J += dI;
+                        current_measurements[step] = dI;
+
+                        t += Δt;
+                    }
+
+                    // Write last state.
+                    let P = system.ρ.get_probabilites_simd();
+                    local.trajectory_sum[config.step_count as usize].add(&P);
+                    for (i, p) in P.v.iter().enumerate() {
+                        local.trajectory_hist[config.step_count as usize][i].add_values(p);
+                    }
+
+                    //local.current_sum[simulation as usize] = J;
+                    //local.final_states[simulation as usize] = P;
+                    local.current_sum.push(J);
+                    local.final_states.push(P);
+                }
+
+                let total_time = now.elapsed().as_millis();
+
+                println!("Thread {thread_id} finished {} simulations in {total_time} ms ({} μs/sim) (total section time {} ms)",
+                         config.simulations_per_thread,
+                         (total_time*1000)/(config.simulations_per_thread*Real::LANES as u32) as u128,
+                         total_section_time/1000
+                );
+
+                for s in local.trajectory_sum.iter_mut() {
+                    s.divide(config.simulations_per_thread as fp);
+                }
+
+                local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
+                local.fidelities = Some(fidelities);
+
+                tx.send(local).unwrap();
+            });
         }
+    });
 
-        let total_time = now.elapsed().as_millis();
 
-        println!("Thread {thread_id} finished {SIMULATIONS_PER_THREAD} simulations in {total_time} ms ({} μs/sim) (total section time {} ms)",
-                 (total_time*1000)/(SIMULATIONS_PER_THREAD*Real::LANES as u32) as u128,
-                 total_section_time/1000
-        );
-
-        for s in local.trajectory_sum.iter_mut() {
-            s.divide(SIMULATIONS_PER_THREAD as fp);
-        }
-
-        local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
-        local.fidelities = Some(fidelities);
-
-        local
-    })}).collect();
-
-    let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (STEP_COUNT+1) as usize].into_boxed_slice();
-    let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; STEP_COUNT as usize+1]);
+    let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (config.step_count+1) as usize].into_boxed_slice();
+        //let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
+    let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
     let mut measurements = alloc_zero!(MeasurementRecords);
+
 
     // Wait for threads
     let mut fidelites = Vec::new();
-    for (i, tt) in threads.into_iter().enumerate() {
-        let local = tt.join().unwrap();
+    for i in 0..(config.thread_count as usize) {
+        //let local = tt.join().unwrap();
+        let local = rx.recv().unwrap();
+
         for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
             s.add(ls);
         }
 
-        for (histograms, local_histograms) in trajectory_histograms.iter_mut().zip(local.trajectory_hist.iter()) {
+        //for (i, histograms) in trajectory_histograms.iter_mut().enumerate() {
+        for i in 0..trajectory_histograms.row_count() {
+            let local_histograms = &local.trajectory_hist[i];
+            let histograms = &mut trajectory_histograms[i];
             for (histogram, local_histogram) in histograms.iter_mut().zip(local_histograms.iter()) {
                 histogram.add_histogram(local_histogram);
             }
@@ -492,9 +558,9 @@ let γ_φ = {γ_φ};
         }
 
         if let Some(m) = local.measurements {
-            let a = i * SIMULATIONS_PER_THREAD as usize;
-            let b = (i+1) * SIMULATIONS_PER_THREAD as usize;
-            measurements.measurements[a..b].copy_from_slice(&m[..]);
+            let a = i * config.simulations_per_thread as usize;
+            let b = (i+1) * config.simulations_per_thread as usize;
+            measurements.measurements[a..b].copy_from_slice(m.as_slice());
         }
 
         if let Some(f) = local.fidelities {
@@ -503,23 +569,23 @@ let γ_φ = {γ_φ};
     }
 
     for s in trajectory_average.iter_mut() {
-        s.divide(THREAD_COUNT as fp);
+        s.divide(config.thread_count as fp);
         data_file.write_all(&s.average().to_le_bytes()).unwrap();
     }
 
     // TODO: actual time
     // TODO: fix magic number (simcount)
-    for i in 0..=STEP_COUNT {
+    for i in 0..=config.step_count {
         let t = i as fp * Δt;
         data_file.write_all(&t.to_le_bytes()).unwrap();
     }
 
-    let mut buffer = Vec::with_capacity(std::mem::size_of::<u32>() * HIST_BIN_COUNT * Operator::SIZE * STEP_COUNT as usize);
-    for state in trajectory_histograms.iter() {
-        for hist in state.iter() {
-            for bin in hist.bins.iter().rev() {
-                buffer.extend_from_slice(&bin.to_le_bytes());
-            }
+    let mut buffer = Vec::with_capacity(std::mem::size_of::<u32>() * HIST_BIN_COUNT * Operator::SIZE * config.step_count as usize);
+    //for state in trajectory_histograms.iter() {
+    //    for hist in state.iter() {
+    for hist in trajectory_histograms.as_slice().iter() {
+        for bin in hist.bins.iter().rev() {
+            buffer.extend_from_slice(&bin.to_le_bytes());
         }
     }
     hist_file.write_all(&buffer).unwrap();
@@ -528,9 +594,10 @@ let γ_φ = {γ_φ};
     if fidelites.len() > 0 {
         for lane in 0..V::LANES {
             for sim in fidelites.iter() {
-                for f in sim.iter() {
-                    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
-                }
+                buffer.extend_from_slice(&sim.real[lane].to_le_bytes());
+                //for f in sim.iter() {
+                //    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
+                //}
             }
         }
         fidelity_file.write_all(&buffer).unwrap();
@@ -542,15 +609,15 @@ let γ_φ = {γ_φ};
 
 
 fn simple() {
-    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), None);
+    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), &DEFAULT_CONFIG, None);
 }
 
 fn feed_current_known_state () {
     // Current of known state of |11>
-    let a = simulate::<false, true, false>(InitialState::Probabilites(vec![0.0, 0.45, 0.55, 0.0]), None);
+    let a = simulate::<false, true, false>(InitialState::Probabilites(vec![0.0, 0.45, 0.55, 0.0]), &DEFAULT_CONFIG, None);
 
     // Feed current into perfect superposition.
-    let b = simulate::<true, false, true>(InitialState::Probabilites(vec![0.25, 0.25, 0.25, 0.25]), Some(a.unwrap().into()));
+    let b = simulate::<true, false, true>(InitialState::Probabilites(vec![0.25, 0.25, 0.25, 0.25]), &DEFAULT_CONFIG, Some(a.unwrap().into()));
 }
 
 fn main() {
@@ -567,6 +634,6 @@ fn main() {
     println!(
         "Simulations took {elapsed} ms ({} sim/s, {} steps/s)",
         (1000*SIMULATION_COUNT*Real::LANES as u32) as fp / elapsed as fp,
-        (1000*SIMULATION_COUNT as u64 * STEP_COUNT as u64 * Real::LANES as u64) as u128 / elapsed
+        (1000*SIMULATION_COUNT as u64 * DEFAULT_CONFIG.step_count as u64 * Real::LANES as u64) as u128 / elapsed
     );
 }

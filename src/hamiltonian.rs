@@ -1,3 +1,4 @@
+use crate::config::SimulationConfig;
 use crate::helpers::apply_individually_parts;
 use crate::num::*;
 use crate::operator::*;
@@ -86,7 +87,7 @@ impl QuantumCircuit {
     //     QuantumCircuit { operations: ops }
     // }
 
-    pub fn new(gates: &[(Operator, fp)]) -> QuantumCircuit {
+    pub fn new(gates: &[(Operator, fp)], config: &SimulationConfig) -> QuantumCircuit {
         let mut ops: Vec<QuantumGate> = Vec::new();
 
         let mut circuit_time = 0.0;
@@ -97,7 +98,7 @@ impl QuantumCircuit {
         }
 
         // NOTE: Maybe debug_assert? or disable to allow partial circuit simulations
-        assert!(circuit_time < crate::STEP_COUNT as fp * crate::Δt, "Total simulation time is less than circuit time! Increase the simulation time or disable this assert.");
+        assert!(circuit_time < config.step_count as fp * crate::Δt, "Total simulation time is less than circuit time! Increase the simulation time or disable this assert.");
 
         QuantumCircuit { operations: ops }
     }
