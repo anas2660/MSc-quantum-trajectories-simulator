@@ -336,6 +336,18 @@ impl Operator {
                 sum + s*c*p
             })
     }
+
+    pub fn fidelity_2x2(&self, ideal: &Operator) -> Real {
+        let m = self*ideal;
+        let trace = m.trace();
+        let determinant = m[(0,0)]*m[(1,1)] - m[(0,1)]*m[(1,0)];
+        let s = determinant.sqrt();     // Maybe make sure it is positive.
+        let t = (trace + 2.0*s).sqrt(); // Maybe make sure it is positive.
+        let sqrt_m = t.inverse()*(m + s*Operator::identity());
+        let trace_sqrt_m = sqrt_m.trace();
+        (trace_sqrt_m*trace_sqrt_m).real
+    }
+
 }
 
 impl Display for Operator {
