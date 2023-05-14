@@ -230,7 +230,7 @@ for i in range(fidelity_simulations):
 
 plt.ylim(0,1)
 plt.grid()
-plt.legend()
+# plt.legend()
 plt.show()
 
 print("Fidelity average:", np.mean(actual_fidelities))
