@@ -225,7 +225,7 @@ actual_fidelities = np.zeros((fidelity_simulations))
 for i in range(fidelity_simulations):
     plt.plot(t[1:], fidelity_data[i], label = "Sim " + str(i))
     dt = t[1]-t[0]
-    actual_fidelities[i] = fidelity_data[i][int(np.floor(np.pi/(2*omega*dt)))]
+    actual_fidelities[i] = fidelity_data[i][-1] # [int(np.floor(np.pi/(2*omega*dt)))]
     print("The fidelity of sim", i, "is", actual_fidelities[i])
 
 plt.ylim(0,1)
