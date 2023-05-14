@@ -26,22 +26,21 @@ pub struct Hamiltonian {
     H: Operator
 }
 
-fn solve_analytically(H: &Operator, time_step: f64) -> Hamiltonian {
+fn solve_analytically(H: &Operator, time_step: f64, config: &SimulationConfig) -> Hamiltonian {
     let mut current_Δt = time_step;
     let H: Matrix = (*H).into();
     let H = &H;
     for attempt in 1..32 {
-        println!("attempt {attempt}");
-        println!("current Δt {current_Δt}");
+        if !config.silent {println!("attempt {attempt}")};
+        if !config.silent {println!("current Δt {current_Δt}")};
         let result = (SC!(0.0,-current_Δt)*H).budget_matrix_exponential();
         if let Ok(result) = result  {
-            println!("Ok(result) = \n{}", result);
+            if !config.silent {println!("Ok(result) = \n{}", result)};
             return Hamiltonian { H: result.pow(1<<(attempt-1)).to_operator() };
         }
 
-        match result {
-            Ok(_) => (),
-            Err(max) => println!("Max was {max}"),
+        if let Err(max) = result {
+            if !config.silent {println!("Max was {max}")};
         }
 
         current_Δt /= 2.0;
@@ -92,8 +91,8 @@ impl QuantumCircuit {
 
         let mut circuit_time = 0.0;
         for (H, t) in gates {
-            ops.push(QuantumGate { hamiltonian: solve_analytically(&H, crate::Δt as f64), steps: (*t/crate::Δt) as usize });
-            println!("p:\n{}", ops.last().unwrap().hamiltonian.H);
+            ops.push(QuantumGate { hamiltonian: solve_analytically(&H, crate::Δt as f64, config), steps: (*t/crate::Δt) as usize });
+            if !config.silent {println!("p:\n{}", ops.last().unwrap().hamiltonian.H)};
             circuit_time += t;
         }
 
