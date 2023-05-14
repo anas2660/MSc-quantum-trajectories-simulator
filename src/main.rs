@@ -355,6 +355,14 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
         fidelities: Option<MVec<Complex>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
+    // Combination of all thread results
+    let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (config.step_count+1) as usize].into_boxed_slice();
+    //let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
+    let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
+    let mut measurements = MeasurementRecords { measurements: unsafe {MVec::alloc_zeroed(config.simulation_count(), config.step_count as usize)} };
+    let mut fidelites = Vec::new();
+
+    // Communication channel to send thread results.
     let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::scope(|s|{
@@ -515,58 +523,51 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                 tx.send(local).unwrap();
             });
         }
+
+        // Combine thread results.
+        for i in 0..(config.thread_count as usize) {
+            //let local = tt.join().unwrap();
+            let local = rx.recv().unwrap();
+
+            for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
+                s.add(ls);
+            }
+
+            //for (i, histograms) in trajectory_histograms.iter_mut().enumerate() {
+            for i in 0..trajectory_histograms.row_count() {
+                let local_histograms = &local.trajectory_hist[i];
+                let histograms = &mut trajectory_histograms[i];
+                for (histogram, local_histogram) in histograms.iter_mut().zip(local_histograms.iter()) {
+                    histogram.add_histogram(local_histogram);
+                }
+            }
+
+            for the_current in local.current_sum.iter() {
+                for lane in 0..Real::LANES {
+                    current_file.write_all(&the_current.real.as_array()[lane].to_le_bytes()).unwrap();
+                    current_file.write_all(&the_current.imag.as_array()[lane].to_le_bytes()).unwrap();
+                }
+            }
+
+            for the_final_state in local.final_states.iter() {
+                let final_state_array = the_final_state.as_array();
+                for final_state in final_state_array {
+                    final_state_file.write_all(&final_state.to_le_bytes()).unwrap();
+                }
+            }
+
+            if let Some(m) = local.measurements {
+                let a = i * config.simulations_per_thread as usize;
+                let b = (i+1) * config.simulations_per_thread as usize;
+                measurements.measurements[a..b].copy_from_slice(m.as_slice());
+            }
+
+            if let Some(f) = local.fidelities {
+                fidelites.extend_from_slice(f.as_slice());
+            }
+        }
     });
 
-
-    let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (config.step_count+1) as usize].into_boxed_slice();
-        //let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
-    let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
-    let mut measurements = MeasurementRecords { measurements: unsafe {MVec::alloc_zeroed(config.simulation_count(), config.step_count as usize)} };
-
-
-    // Wait for threads
-    let mut fidelites = Vec::new();
-    for i in 0..(config.thread_count as usize) {
-        //let local = tt.join().unwrap();
-        let local = rx.recv().unwrap();
-
-        for (s, ls) in trajectory_average.iter_mut().zip(local.trajectory_sum.iter()) {
-            s.add(ls);
-        }
-
-        //for (i, histograms) in trajectory_histograms.iter_mut().enumerate() {
-        for i in 0..trajectory_histograms.row_count() {
-            let local_histograms = &local.trajectory_hist[i];
-            let histograms = &mut trajectory_histograms[i];
-            for (histogram, local_histogram) in histograms.iter_mut().zip(local_histograms.iter()) {
-                histogram.add_histogram(local_histogram);
-            }
-        }
-
-        for the_current in local.current_sum.iter() {
-            for lane in 0..Real::LANES {
-                current_file.write_all(&the_current.real.as_array()[lane].to_le_bytes()).unwrap();
-                current_file.write_all(&the_current.imag.as_array()[lane].to_le_bytes()).unwrap();
-            }
-        }
-
-        for the_final_state in local.final_states.iter() {
-            let final_state_array = the_final_state.as_array();
-            for final_state in final_state_array {
-                final_state_file.write_all(&final_state.to_le_bytes()).unwrap();
-            }
-        }
-
-        if let Some(m) = local.measurements {
-            let a = i * config.simulations_per_thread as usize;
-            let b = (i+1) * config.simulations_per_thread as usize;
-            measurements.measurements[a..b].copy_from_slice(m.as_slice());
-        }
-
-        if let Some(f) = local.fidelities {
-            fidelites.extend_from_slice(f.as_slice());
-        }
-    }
 
     for s in trajectory_average.iter_mut() {
         s.divide(config.thread_count as fp);
