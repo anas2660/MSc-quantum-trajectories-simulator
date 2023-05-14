@@ -10,16 +10,16 @@ pub fn anticommutator(a: Operator, b: Operator) -> Operator {
     &(a * b) + &(b * a)
 }
 
-macro_rules! alloc_zero {
-    ($T: ty) => {
-        unsafe {
-            const layout: std::alloc::Layout = std::alloc::Layout::new::<$T>();
-            let ptr = std::alloc::alloc_zeroed(layout) as *mut $T;
-            Box::from_raw(ptr)
-        }
-    };
-}
-pub(crate) use alloc_zero;
+//macro_rules! alloc_zero {
+//    ($T: ty) => {
+//        unsafe {
+//            const layout: std::alloc::Layout = std::alloc::Layout::new::<$T>();
+//            let ptr = std::alloc::alloc_zeroed(layout) as *mut $T;
+//            Box::from_raw(ptr)
+//        }
+//    };
+//}
+//pub(crate) use alloc_zero;
 
 pub fn anti_tensor_commutator(lhs: &Matrix, rhs: &Matrix) -> Matrix {
     lhs.kronecker(rhs) + rhs.kronecker(lhs)

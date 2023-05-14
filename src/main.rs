@@ -285,7 +285,7 @@ struct MeasurementRecords {
 }
 
 fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(initial_state: InitialState, config: &SimulationConfig, records: Option<Arc<MeasurementRecords>>)
-     -> Option<Box<MeasurementRecords>> {
+     -> Option<MeasurementRecords> {
 
     let timestamp = std::time::SystemTime::UNIX_EPOCH
         .elapsed()
@@ -521,7 +521,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     let mut trajectory_average = vec![StateProbabilitiesSimd::zero(); (config.step_count+1) as usize].into_boxed_slice();
         //let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
     let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
-    let mut measurements = alloc_zero!(MeasurementRecords);
+    let mut measurements = MeasurementRecords { measurements: unsafe {MVec::alloc_zeroed(config.simulation_count(), config.step_count as usize)} };
 
 
     // Wait for threads
@@ -605,7 +605,6 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
 
     if RETURN_RECORDS { Some(measurements) } else { None }
 }
-
 
 
 fn simple() {
