@@ -352,7 +352,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
         current_sum: Vec<Complex>, //[Complex; SIMULATIONS_PER_THREAD as usize],
         final_states: Vec<StateProbabilitiesSimd>, //[StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
         measurements: Option<MVec<Complex>>, // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>,
-        fidelities: Option<MVec<Complex>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
+        fidelities: Option<MVec<Real>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
     // Combination of all thread results
@@ -360,7 +360,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     //let mut trajectory_histograms = alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
     let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
     let mut measurements = MeasurementRecords { measurements: unsafe {MVec::alloc_zeroed(config.simulation_count(), config.step_count as usize)} };
-    let mut fidelites = Vec::new();
+    let mut fidelities = Vec::new();
 
     // Communication channel to send thread results.
     let (tx, rx) = std::sync::mpsc::channel();
@@ -476,8 +476,11 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                         system.ρ.normalize();
 
                         // Compute fidelity.
-                        let fidelity_part = (system.ρ*ideal_ρ).sqrt().trace();
-                        fidelities[step] = fidelity_part*fidelity_part;
+                        //let fidelity_part = (system.ρ*ideal_ρ).sqrt().trace();
+                        //fidelities[step] = fidelity_part*fidelity_part;
+                        if Operator::SIZE == 2 {
+                            fidelities[step] = system.ρ.fidelity_2x2(&ideal_ρ);
+                        }
 
                         // Compute current.
                         const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
@@ -518,7 +521,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                 }
 
                 local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
-                local.fidelities = Some(fidelities);
+                local.fidelities = if Operator::SIZE == 2 { Some(fidelities) } else { None };
 
                 tx.send(local).unwrap();
             });
@@ -563,7 +566,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
             }
 
             if let Some(f) = local.fidelities {
-                fidelites.extend_from_slice(f.as_slice());
+                fidelities.extend_from_slice(f.as_slice());
             }
         }
     });
@@ -592,10 +595,10 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     hist_file.write_all(&buffer).unwrap();
 
     buffer.clear();
-    if fidelites.len() > 0 {
+    if !fidelities.is_empty() {
         for lane in 0..V::LANES {
-            for sim in fidelites.iter() {
-                buffer.extend_from_slice(&sim.real[lane].to_le_bytes());
+            for sim in fidelities.iter() {
+                buffer.extend_from_slice(&sim[lane].to_le_bytes());
                 //for f in sim.iter() {
                 //    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
                 //}
