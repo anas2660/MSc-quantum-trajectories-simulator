@@ -195,6 +195,19 @@ impl Complex {
     }
 
     #[inline]
+    pub fn sqrt(self) -> Self {
+        let x = self.real;
+        let y = self.imag;
+        let half = Real::splat(0.5);
+        let length = (x*x + y*y).sqrt();
+
+        Complex {
+            real: (half*(length + x)).sqrt(),
+            imag: (half*(length - x)).sqrt() * y.signum()
+        }
+    }
+
+    #[inline]
     pub fn mul_add(self, to_mul: Self, to_add: Self) -> Self {
         // For (a + bi)(c + di) + (e + fi) we get
         // real: ac - bd + e
