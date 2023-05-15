@@ -66,6 +66,8 @@ const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
     simulations_per_thread: 100,
     silent: false,
 
+    fidelity_probe: None,
+
     // Physical constants
     κ: 0.5,
     κ_1: 0.5, // NOTE:
@@ -283,7 +285,7 @@ impl QubitSystem {
 #[derive(Clone)]
 struct SimulationResults {
     measurement_records: Option<MVec<Complex>>, //[[Complex; STEP_COUNT as usize]; SIMULATION_COUNT as usize]
-    last_fidelities: Option<Vec<Real>>
+    fidelity_probe_results: Option<Vec<Real>>
 }
 
 fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_FILES: bool>(initial_state: InitialState, config: &SimulationConfig, records: Option<Arc<SimulationResults>>)
@@ -313,7 +315,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     let mut hist_file        = create_output_file("hist.dat");
     let mut current_file     = create_output_file("currents.dat");
     let mut final_state_file = create_output_file("final_state.dat");
-    let mut fidelity_file    = create_output_file("fidelity.dat");
+    //let mut fidelity_file    = create_output_file("fidelity.dat");
 
     // FIXME // TODO:
 //    parameter_file
@@ -354,7 +356,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
         current_sum: Vec<Complex>, //[Complex; SIMULATIONS_PER_THREAD as usize],
         final_states: Vec<StateProbabilitiesSimd>, //[StateProbabilitiesSimd; SIMULATIONS_PER_THREAD as usize],
         measurements: Option<MVec<Complex>>, // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>,
-        fidelities: Option<MVec<Real>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
+        fidelities: Option<Vec<Real>>    // Option<Box<[[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]>>
     }
 
     // Combination of all thread results
@@ -363,7 +365,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     let mut trajectory_histograms = unsafe { MVec::<Histogram<HIST_BIN_COUNT>>::alloc_zeroed(config.step_count as usize+1, Operator::SIZE)};// alloc_zero!([[Histogram::<HIST_BIN_COUNT>; Operator::SIZE]; config.step_count as usize+1]);
     let mut measurements = unsafe {MVec::alloc_zeroed(config.simulation_count(), config.step_count as usize)};
     let mut fidelities = Vec::new();
-    let mut last_fidelities = Vec::new();
+    // let mut last_fidelities = Vec::new();
 
     // Communication channel to send thread results.
     let (tx, rx) = std::sync::mpsc::channel();
@@ -392,8 +394,9 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                 //let mut measurements =  alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
                 //let mut fidelities    = alloc_zero!([[Complex; STEP_COUNT as usize]; SIMULATIONS_PER_THREAD as usize]);
                 let mut measurements = unsafe {MVec::alloc_zeroed(config.simulations_per_thread as usize, config.step_count as usize)};
-                let mut fidelities = unsafe {MVec::alloc_zeroed(config.simulations_per_thread as usize, config.step_count as usize)};
+                //let mut fidelities = unsafe {MVec::alloc_zeroed(config.simulations_per_thread as usize, config.step_count as usize)};
                 let input_records = &input_records_arc;
+                let mut fidelities = Vec::with_capacity(config.simulations_per_thread as usize);
 
                 // Start the timer.
                 let now = std::time::Instant::now();
@@ -407,9 +410,10 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
 
                 // RNG
                 let mut rng = thread_rng();
-
-                // S generator
                 let mut S = SGenerator::new(&mut rng);
+
+                // Calculate simulation step at which to probe the fidelity.
+                let fidelity_probe_step = config.fidelity_probe.map(|t| ((t/Δt).round() as usize).min(config.step_count as usize)-1 );
 
                 // sqrt(η/2) is from the definition of dZ.
                 // sqrt(dt) is to make the variance σ = dt
@@ -431,7 +435,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                     let (mut H, mut steps_to_next_gate) = circuit_state.next();
 
                     let current_measurements = &mut measurements[simulation as usize];
-                    let fidelities = &mut fidelities[simulation as usize];
+                    //let fidelities = &mut fidelities[simulation as usize];
 
                     // Do 2000 steps.
                     for step in 0..config.step_count as usize {
@@ -482,7 +486,11 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                         //let fidelity_part = (system.ρ*ideal_ρ).sqrt().trace();
                         //fidelities[step] = fidelity_part*fidelity_part;
                         if Operator::SIZE == 2 {
-                            fidelities[step] = system.ρ.fidelity_2x2(&ideal_ρ);
+                            if let Some(probe_step) = fidelity_probe_step {
+                                if step == probe_step {
+                                    fidelities.push(system.ρ.fidelity_2x2(&ideal_ρ));
+                                }
+                            }
                         }
 
                         // Compute current.
@@ -526,7 +534,7 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
                 }
 
                 local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
-                local.fidelities = if Operator::SIZE == 2 { Some(fidelities) } else { None };
+                local.fidelities = if Operator::SIZE == 2 && config.fidelity_probe.is_some() { Some(fidelities) } else { None };
 
                 tx.send(local).unwrap();
             });
@@ -572,9 +580,9 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
 
             if let Some(f) = local.fidelities {
                 fidelities.extend_from_slice(f.as_slice());
-                for i in 0..f.row_count() {
-                    last_fidelities.push(*f[i].last().unwrap());
-                }
+                //for i in 0..f.row_count() {
+                //    last_fidelities.push(*f[i].last().unwrap());
+                //}
             }
         }
     });
@@ -602,22 +610,22 @@ fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WRITE_
     }
     hist_file.write_all(&buffer).unwrap();
 
-    buffer.clear();
-    if !fidelities.is_empty() {
-        for lane in 0..V::LANES {
-            for sim in fidelities.iter() {
-                buffer.extend_from_slice(&sim[lane].to_le_bytes());
-                //for f in sim.iter() {
-                //    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
-                //}
-            }
-        }
-        fidelity_file.write_all(&buffer).unwrap();
-    }
+    // buffer.clear();
+    // if !fidelities.is_empty() {
+    //     for lane in 0..V::LANES {
+    //         for sim in fidelities.iter() {
+    //             buffer.extend_from_slice(&sim[lane].to_le_bytes());
+    //             //for f in sim.iter() {
+    //             //    buffer.extend_from_slice(&f.real[lane].to_le_bytes());
+    //             //}
+    //         }
+    //     }
+    //     fidelity_file.write_all(&buffer).unwrap();
+    // }
 
     SimulationResults {
         measurement_records: if RETURN_RECORDS { Some(measurements) } else { None },
-        last_fidelities: if Operator::SIZE == 2 { Some(last_fidelities) } else {None}
+        fidelity_probe_results: if Operator::SIZE == 2 && config.fidelity_probe.is_some() { Some(fidelities) } else {None}
     }
 }
 
@@ -626,6 +634,8 @@ fn fidelity_data() {
     conf.simulations_per_thread = 750;
     conf.silent = true;
 
+    conf.fidelity_probe = Some(0.00314);
+
     let mut csv_data = Vec::new();
 
     for i in 0..=20 {
@@ -633,7 +643,7 @@ fn fidelity_data() {
             conf.χ_0 = i as fp / 5.0;
             conf.β = Complex::new(j as fp, 0.0);
             let simulation_results = simulate::<false, false, false>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), &conf, None);
-            let fidelities = simulation_results.last_fidelities.as_ref().unwrap();
+            let fidelities = simulation_results.fidelity_probe_results.as_ref().unwrap();
             let zero = Real::splat(0.0);
             let n = (fidelities.len() * Real::LANES) as fp;
 

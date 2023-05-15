@@ -12,6 +12,8 @@ pub struct SimulationConfig {
     // trajectory count is simulation_count*Real::LANES (which is 4 for double
     // precision and 8 for single precision)
 
+    pub fidelity_probe: Option<fp>, // Optinal time at which to probe the fidelity
+
     // Physical constants
     pub κ: fp,
     pub κ_1: fp,    /// NOTE: Max value is the value of kappa. This is for the purpose of loss between emission and measurement.
