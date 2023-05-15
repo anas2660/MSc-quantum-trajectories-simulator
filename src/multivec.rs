@@ -10,7 +10,7 @@ pub struct MVec<T: Sized> {
     ncols: usize
 }
 
-impl<T> MVec<T> {
+impl<T: Clone> MVec<T> {
     pub unsafe fn alloc_zeroed(nrows: usize, ncols: usize) -> Self {
         let mut inner = Vec::with_capacity(nrows*ncols);
         unsafe { inner.set_len(nrows*ncols) };
@@ -21,10 +21,50 @@ impl<T> MVec<T> {
         Self { inner, nrows, ncols }
     }
 
+    pub fn with_capacity(nrows: usize, ncols: usize) -> Self {
+        Self {
+            inner: Vec::with_capacity(nrows*ncols),
+            nrows,
+            ncols,
+        }
+    }
+
+    pub fn push(&mut self, value: T) { self.inner.push(value) }
+
+    pub fn extend_from_slice(&mut self, other: &[T]) { self.inner.extend_from_slice(other) }
+
     pub fn as_slice(&self) -> &[T] { self.inner.as_slice() }
 
     pub fn row_count(&self) -> usize { self.nrows }
 
+    pub fn transpose(&mut self) {
+        println!("NCOLS {}", self.ncols);
+        println!("NROWS {}", self.nrows);
+        println!("LEN {}", self.inner.len());
+
+        let mut copy = MVec::with_capacity(self.ncols, self.nrows);
+
+        for c in 0..self.ncols {
+            for r in 0..self.nrows {
+                //println!("r{r} c{c}");
+                copy.push(self[r][c].clone());
+            }
+        }
+
+        std::mem::swap(&mut copy, self);
+
+        //for i in 0..self.nrows {
+        //    for j in 0..i {
+        //        //dbg!(i);
+        //        //dbg!(j);
+        //        ////let a = self.inner[i*self.nrows + j].clone();
+        //        ////self.inner[i*self.nrows + j] = self.inner[j*self.nrows + i].clone();
+        //        ////self.inner[j*self.nrows + i] = a;
+        //        std::mem::swap(&mut self.inner[j*self.nrows + i], &mut self.inner[i*self.nrows + j]);
+        //    }
+        //}
+        //std::mem::swap(&mut self.ncols, &mut self.nrows);
+    }
  }
 
 

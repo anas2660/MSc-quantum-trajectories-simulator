@@ -13,6 +13,7 @@ pub struct SimulationConfig {
     // precision and 8 for single precision)
 
     pub fidelity_probe: Option<fp>, // Optinal time at which to probe the fidelity
+    pub measure_purity: bool,
 
     // Physical constants
     pub κ: fp,

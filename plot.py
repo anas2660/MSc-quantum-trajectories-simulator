@@ -210,31 +210,31 @@ plt.show()
 
 
 
-# Current plot data
-files = glob.glob("results/*fidelity*")
-files.sort()
-filename = files[-1]
+# fidelity plot data
+# files = glob.glob("results/*fidelity*")
+# files.sort()
+# filename = files[-1]
+#
+# fidelity_data_buffer = open(filename, "rb").read()
+# #fidelity_metadata = np.frombuffer(fidelity_data_buffer, np.uint32, count=1)
+# fidelity_simulations = current_simulations
+# fidelity_data = np.reshape(np.frombuffer(fidelity_data_buffer, float_type, offset=0), (fidelity_simulations, hist_step_count-1))
+#
+# plt.title("Fidelity of $\sigma_x$");
+# actual_fidelities = np.zeros((fidelity_simulations))
+# for i in range(fidelity_simulations):
+#     plt.plot(t[1:], fidelity_data[i], label = "Sim " + str(i))
+#     dt = t[1]-t[0]
+#     actual_fidelities[i] = fidelity_data[i][-1] # [int(np.floor(np.pi/(2*omega*dt)))]
+#     print("The fidelity of sim", i, "is", actual_fidelities[i])
+#
+# plt.ylim(0,1)
+# plt.grid()
+# # plt.legend()
+# plt.show()
 
-fidelity_data_buffer = open(filename, "rb").read()
-#fidelity_metadata = np.frombuffer(fidelity_data_buffer, np.uint32, count=1)
-fidelity_simulations = current_simulations
-fidelity_data = np.reshape(np.frombuffer(fidelity_data_buffer, float_type, offset=0), (fidelity_simulations, hist_step_count-1))
-
-plt.title("Fidelity of $\sigma_x$");
-actual_fidelities = np.zeros((fidelity_simulations))
-for i in range(fidelity_simulations):
-    plt.plot(t[1:], fidelity_data[i], label = "Sim " + str(i))
-    dt = t[1]-t[0]
-    actual_fidelities[i] = fidelity_data[i][-1] # [int(np.floor(np.pi/(2*omega*dt)))]
-    print("The fidelity of sim", i, "is", actual_fidelities[i])
-
-plt.ylim(0,1)
-plt.grid()
-# plt.legend()
-plt.show()
-
-print("Fidelity average:", np.mean(actual_fidelities))
-print("Fidelity standard deviation:", np.std(actual_fidelities))
+#print("Fidelity average:", np.mean(actual_fidelities))
+#print("Fidelity standard deviation:", np.std(actual_fidelities))
 
 # (current_simulations, state_count)
 
