@@ -22,13 +22,11 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
     let create_output_file = |name| {
         if WRITE_FILES {
             std::fs::File::create(format!("results/{timestamp}_{name}")).unwrap()
+        } else if cfg!(windows) {
+            // FIXME: I haven't tested if "nul" works on windows.
+            std::fs::File::create("nul").unwrap()
         } else {
-            if cfg!(windows) {
-                // FIXME: I haven't tested if "nul" works on windows.
-                std::fs::File::create("nul").unwrap()
-            } else {
-                std::fs::File::create("/dev/null").unwrap()
-            }
+            std::fs::File::create("/dev/null").unwrap()
         }
     };
 
@@ -277,7 +275,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                 local.fidelities = if Operator::SIZE == 2 && config.fidelity_probe.is_some() { Some(fidelities) } else { None };
 
                 tx.send(local).unwrap();
-            });
+            }).unwrap();
         }
 
         // Combine thread results.

@@ -31,6 +31,13 @@ pub struct SimulationConfig {
     pub Δ_r: fp,
 
     pub Δ_br: fp, // ω_b - ω_r
+
+    pub chi_offsets: Option<Vec<ChiOffset>>
+}
+
+pub struct ChiOffset {
+    pub index: usize,
+    pub offset: fp
 }
 
 

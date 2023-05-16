@@ -86,6 +86,8 @@ const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
 
     Δ_r: 0.0,
     Δ_br: 10.0, // ω_b - ω_r
+
+    chi_offsets: None
 };
 
 const HIST_BIN_COUNT: usize = 32;
@@ -169,6 +171,10 @@ fn purity_data() {
     conf.χ_0 = 0.6;
     conf.β = C!(100.0);
     conf.η = 0.95;
+    conf.chi_offsets = Some(vec![
+        ChiOffset { index: 0, offset: -0.3 },
+        ChiOffset { index: 1, offset:  0.3 }
+    ]);
 
 
     let ρ_initial = Operator::from_fn(|r,c| C!((r==c) as i32 as fp / Operator::SIZE as fp));

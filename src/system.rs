@@ -45,8 +45,18 @@ impl QubitSystem {
 
         let Δ_b: [fp; Operator::QUBIT_COUNT] = [20.0; Operator::QUBIT_COUNT]; //  ω_b - ω_s
         //let Δ_r: fp = 0.0;
-        let χ: [fp; Operator::QUBIT_COUNT] = [config.χ_0; Operator::QUBIT_COUNT];
+        let mut χ: [fp; Operator::QUBIT_COUNT] = [config.χ_0; Operator::QUBIT_COUNT];
         let g: [fp; Operator::QUBIT_COUNT] = [config.g_0; Operator::QUBIT_COUNT];
+
+        //χ[0] -= 0.3;
+        //χ[1] += 0.3;
+        if let Some(offsets) = config.chi_offsets.as_ref() {
+            for offset in offsets.iter() {
+                if let Some(chi) = χ.get_mut(offset.index) {
+                    *chi += offset.offset;
+                }
+            }
+        }
 
 
 
