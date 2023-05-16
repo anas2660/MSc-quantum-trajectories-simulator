@@ -1,1 +1,1 @@
-RUSTFLAGS="-Ctarget-cpu=native -Ctarget-feature=+fma" mold -run cargo run --release --features "double-precision" && ./plot.py
+RUSTFLAGS="-Ctarget-cpu=native -Ctarget-feature=+fma" cargo run --release --features "double-precision" && ./plot.py
