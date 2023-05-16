@@ -61,7 +61,7 @@ const INITIAL_PROBABILITIES: [f64; 4] = [
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.000005;
+pub const Δt: fp = 0.0000025;
 
 const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
     step_count: 628,
@@ -160,27 +160,21 @@ fn fidelity_data() {
     csv_data.iter().for_each(|(i,χ,β,μ,s)| csv.write_all(format!("{i},{χ},{},{μ},{s}\n", β.real[0]).as_bytes()).unwrap() );
 }
 
-
-fn purity_data() {
+fn purity_means_and_std(offsets: Option<Vec<ChiOffset>>) -> (Vec<fp>, Vec<fp>) {
     let mut conf = DEFAULT_CONFIG;
-    // conf.silent = true;
-    conf.simulations_per_thread = 50;
+    conf.silent = true;
+    conf.simulations_per_thread = 30;
     conf.thread_count = 10;
     conf.measure_purity = true;
-    conf.step_count = 2000;
+    conf.step_count = 5000;
     conf.χ_0 = 0.6;
-    conf.β = C!(100.0);
+    conf.β = C!(125.0);
     conf.η = 0.95;
-    conf.chi_offsets = Some(vec![
-        ChiOffset { index: 0, offset: -0.3 },
-        ChiOffset { index: 1, offset:  0.3 }
-    ]);
-
+    conf.chi_offsets = offsets;
 
     let ρ_initial = Operator::from_fn(|r,c| C!((r==c) as i32 as fp / Operator::SIZE as fp));
     //let ρ_initial = Operator::from_fn(|r,c| C!((r==0 && c==0) as i32 as fp));
-
-    let mut results = simulate::<false, false, true>(InitialState::DensityMatrix(ρ_initial), &conf, None);
+    let mut results = simulate::<false, false, false>(InitialState::DensityMatrix(ρ_initial), &conf, None);
     let purities = results.purity_results.as_mut().unwrap();
     purities.transpose();
     let z = Real::splat(0.0);
@@ -205,14 +199,41 @@ fn purity_data() {
         .map(|x| x.sqrt())
         .collect();
 
+    (mean, std)
+}
+
+
+fn purity_data() {
+    let (mean, std) = purity_means_and_std(None);
 
     let mut csv = std::fs::File::create("purity_data.csv").unwrap();
     csv.write_all(b"t, mean, standard_deviation\n").unwrap();
-    for i in 0..conf.step_count as usize {
+    for i in 0..mean.len() {
         let t = i as fp * Δt;
         csv.write_all(format!("{t}, {}, {}\n", mean[i], std[i]).as_bytes()).unwrap();
     }
-    //csv_data.iter().for_each(|(i,χ,β,μ,s)| csv.write_all(format!("{i},{χ},{},{μ},{s}\n", β.real[0]).as_bytes()).unwrap() );
+}
+
+
+fn purity_data_varying_chi() {
+    let mut csv_data = Vec::new();
+
+    for i in 0..250 {
+        let offset = i as fp * 0.0008/5.0;
+        let offsets = Some(vec![
+            ChiOffset { index: 0, offset: -offset/2.0 },
+            ChiOffset { index: 1, offset:  offset/2.0 }
+        ]);
+        let (mean, std) = purity_means_and_std(offsets);
+        let (max_mean, max_std) = mean.into_iter().zip(std).max_by(|(m1,_), (m2,_)| m1.partial_cmp(m2).unwrap()).unwrap();
+
+        csv_data.push((offset, max_mean, max_std));
+        println!("Completed [{i}/250]");
+    }
+
+    let mut csv = std::fs::File::create("purity_data_varying_chi.csv").unwrap();
+    csv.write_all(b"offset, mean, standard_deviation\n").unwrap();
+    csv_data.iter().for_each(|(δ,μ,s)| csv.write_all(format!("{δ},{μ},{s}\n").as_bytes()).unwrap() );
 }
 
 
@@ -244,7 +265,8 @@ fn main() {
     //feed_current_known_state();
     //simple();
     //fidelity_data();
-    purity_data();
+    // purity_data();
+    purity_data_varying_chi()
 
 
 }
