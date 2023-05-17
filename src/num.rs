@@ -116,7 +116,11 @@ macro_rules! SC {
 }
 pub(crate) use SC;
 
-
+impl ShallowComplex {
+    pub fn to_complex(&self) -> Complex {
+        C!(self.real as fp, self.imag as fp)
+    }
+}
 
 impl Complex {
     //    fn from_real(fp) -> Complex {}

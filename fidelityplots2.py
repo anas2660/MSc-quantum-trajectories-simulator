@@ -8,7 +8,7 @@ chi = data[:,1]
 beta = data[:,2]
 fidelity_mean = data[:,3]
 fidelity_std = data[:,4]
-indices = beta == 6.0
+indices = beta == 7.0
 chi = chi[indices]
 fidelity_mean = fidelity_mean[indices]
 fidelity_std = fidelity_std[indices]

@@ -120,27 +120,52 @@ const HIST_BIN_COUNT: usize = 32;
 
 fn fidelity_data() {
 
-    pub fn get_ideal_ρ(initial_state: &InitialState) -> Operator {
+    pub fn get_ideal_ρ(initial_state: &InitialState) -> Matrix {
         let initial_state: Operator = initial_state.clone().into();
+
         let σ_x = Matrix::new(0.0, 1.0, 1.0, 0.0);
         let applied = apply_individually_parts(&σ_x)[0];
-        applied*initial_state*applied
+        // let applied = σ_x.kronecker(&Matrix::identity(2)).to_operator();
+        //let applied = &σ_x;
+        let m = applied*initial_state*applied;
+        let (m1,m2,m3,m4) = m.partial_trace();
+        Matrix::new(
+            m1.first().0 as f64,
+            m2.first().0 as f64,
+            m3.first().0 as f64,
+            m4.first().0 as f64
+        )
     }
 
     let initial_state = InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec());
-    let ideal_ρ = get_ideal_ρ(&initial_state);
+    // let ideal_ρ = get_ideal_ρ(&initial_state);
+    let m = get_ideal_ρ(&initial_state);
+    let ideal_ρ = (
+        m[(0,0)].to_complex(),
+        m[(0,1)].to_complex(),
+        m[(1,0)].to_complex(),
+        m[(1,1)].to_complex()
+    );
 
     let mut conf = DEFAULT_CONFIG;
-    conf.simulations_per_thread = 750;
+    conf.simulations_per_thread = 3;
+    conf.thread_count = 6;
+    //conf.step_count = 4000;
+    conf.step_count = 1257/8; //pi/(2×500×0.0000025)
     conf.silent = true;
-    conf.fidelity_probe = Some((0.00314, IdealState::Full(ideal_ρ))); // 2x2
+    conf.fidelity_probe = Some((0.00314, IdealState::Partial(ideal_ρ))); // 2x2
+    conf.χ_0 = 0.6;
 
     let mut csv_data = Vec::new();
 
     for i in 0..=20 {
-        for j in 0..=20 {
-            conf.χ_0 = i as fp / 5.0;
+        for j in 7..=7 {
+            //    conf.χ_0 = i as fp / 5.0;
             conf.β = Complex::new(j as fp, 0.0);
+            let offset = i as fp / 10.0 - 0.6;
+            let chi = 0.6 + offset;
+            conf.chi_offsets = Some(vec![ChiOffset { index: 0, offset }]);
+
             let simulation_results = simulate::<false, false, false>(initial_state.clone(), &conf, None);
             let fidelities = simulation_results.fidelity_probe_results.as_ref().unwrap();
             let zero = Real::splat(0.0);
@@ -159,9 +184,10 @@ fn fidelity_data() {
             let std = (inner_sum/(n - 1.0)).sqrt();
 
             // Save result
-            csv_data.push((i, conf.χ_0, conf.β, mean, std));
+            csv_data.push((i, chi, conf.β, mean, std));
 
-            println!("Completed [i:{i}/20, j:{j}/20], χ: {}, β: {}, μ: {mean}, std: {std}", conf.χ_0, conf.β.real[0]);
+            println!("Completed [i:{i}/20, j:{j}/20], χ: {chi}, β: {}, μ: {mean}, std: {std}", conf.β.real[0]);
+            //panic!();
         }
     }
 
@@ -177,7 +203,7 @@ fn purity_means_and_std(offsets: Option<Vec<ChiOffset>>) -> (Vec<fp>, Vec<fp>) {
     conf.simulations_per_thread = 30;
     conf.thread_count = 10;
     conf.measure_purity = true;
-    conf.step_count = 5000;
+    conf.step_count = 1000;
     conf.χ_0 = 0.6;
     conf.β = C!(125.0);
     conf.η = 0.95;

@@ -280,7 +280,8 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                 }
 
                 local.measurements = if RETURN_RECORDS { Some(measurements) } else { None };
-                local.fidelities = if Operator::SIZE == 2 && config.fidelity_probe.is_some() { Some(fidelities) } else { None };
+                local.fidelities = if (Operator::SIZE == 2 || Operator::SIZE == 4) && config.fidelity_probe.is_some() { Some(fidelities) } else { None };
+
 
                 tx.send(local).unwrap();
             }).unwrap();
@@ -372,7 +373,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
 
     SimulationResults {
         measurement_records: if RETURN_RECORDS { Some(measurements) } else { None },
-        fidelity_probe_results: if Operator::SIZE == 2 && config.fidelity_probe.is_some() { Some(fidelities) } else {None},
+        fidelity_probe_results: if (Operator::SIZE == 2 || Operator::SIZE == 4) && config.fidelity_probe.is_some() { Some(fidelities) } else {None},
         purity_results: purities
     }
 }
