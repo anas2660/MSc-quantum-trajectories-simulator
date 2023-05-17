@@ -4,7 +4,7 @@ use std::{
     ops::{Add, AddAssign, Div, Index, Mul, Sub}, simd::SimdFloat,
 };
 
-use crate::{num::*, lindblad::Lindblad};
+use crate::{num::*, lindblad::Lindblad, ZERO};
 
 
 #[derive(Debug, Clone, Copy)]
@@ -345,6 +345,40 @@ impl Operator {
         let t = (trace + 2.0*s).sqrt(); // Maybe make sure it is positive.
         let sqrt_m = t.inverse()*(m + s*Operator::identity());
         let trace_sqrt_m = sqrt_m.trace();
+        (trace_sqrt_m*trace_sqrt_m).real
+    }
+
+    pub fn fidelity_4x4_partial_traced(&self, ideal: &(Complex, Complex, Complex, Complex)) -> Real {
+        pub type Mat2 = (Complex, Complex, Complex, Complex); // Row major
+
+        fn mul_2x2(a: &Mat2, b: &Mat2) -> Mat2 {
+            (
+                a.0*b.0 + a.1*b.2,  a.0*b.1 + a.1*b.3,
+                a.2*b.0 + a.3*b.2,  a.2*b.1 + a.3*b.3
+            )
+        }
+
+        fn add_2x2(a: &Mat2, b: &Mat2) -> Mat2 {
+            (a.0+b.0,  a.1+b.1, a.2+b.2,  a.3+b.3)
+        }
+
+        fn scale_2x2(s: &Complex, m: &Mat2) -> Mat2 {
+            (s*&m.0,  s*&m.1, s*&m.2,  s*&m.3)
+        }
+
+        let ρ_11 = self[(0,0)] + self[(1,1)];
+        let ρ_22 = self[(2,2)] + self[(3,3)];
+        let ρ_12 = self[(0,2)] + self[(1,3)];
+        let ρ_21 = self[(2,0)] + self[(3,1)];
+        let ρ = (ρ_11, ρ_22, ρ_12, ρ_21);
+
+        let m = mul_2x2(&ρ, ideal);
+        let trace = ρ_11 + ρ_22;
+        let determinant = ρ_11*ρ_22 - ρ_21*ρ_12;
+        let s = determinant.sqrt();
+        let t = (trace + 2.0*s).sqrt();
+        let sqrt_m = scale_2x2(&t.inverse(), &add_2x2(&m, &(s,ZERO,ZERO,s)));
+        let trace_sqrt_m = sqrt_m.0 + sqrt_m.3;
         (trace_sqrt_m*trace_sqrt_m).real
     }
 

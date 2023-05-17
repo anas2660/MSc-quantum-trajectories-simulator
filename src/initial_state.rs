@@ -3,7 +3,7 @@ use crate::{operator::Operator, matrix::Matrix};
 #[derive(Clone)]
 pub enum InitialState {
     Probabilites(Vec<f64>),
-    StateVector([f64; Operator::SIZE-1]),
+    StateVector([f64; Operator::SIZE]),
     DensityMatrix(Operator),
 }
 
@@ -11,7 +11,7 @@ impl From<InitialState> for Operator {
     fn from(value: InitialState) -> Self {
         match value {
             InitialState::Probabilites(P) => {
-                let mut actual_probabilities = [0.0f64; Operator::SIZE-1];
+                let mut actual_probabilities = [0.0f64; Operator::SIZE];
 
                 // Copy the given probabilites to the actual probabilites.
                 for (actual, given) in actual_probabilities.iter_mut().zip(P.iter()) {
