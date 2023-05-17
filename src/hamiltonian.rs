@@ -50,13 +50,6 @@ fn solve_analytically(H: &Operator, time_step: f64, config: &SimulationConfig) -
 }
 
 
-pub fn get_ideal_ρ(initial_state: &crate::initial_state::InitialState) -> Operator {
-    let initial_state: Operator = initial_state.clone().into();
-    let σ_x = Matrix::new(0.0, 1.0, 1.0,  0.0);
-    let applied = apply_individually_parts(&σ_x)[0];
-    applied*initial_state*applied
-}
-
 impl Hamiltonian {
 
     #[inline]

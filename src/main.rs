@@ -119,10 +119,21 @@ const HIST_BIN_COUNT: usize = 32;
 //////////////const g: [fp; 2] = [g_0, g_0];
 
 fn fidelity_data() {
+
+    pub fn get_ideal_ρ(initial_state: &InitialState) -> Operator {
+        let initial_state: Operator = initial_state.clone().into();
+        let σ_x = Matrix::new(0.0, 1.0, 1.0, 0.0);
+        let applied = apply_individually_parts(&σ_x)[0];
+        applied*initial_state*applied
+    }
+
+    let initial_state = InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec());
+    let ideal_ρ = get_ideal_ρ(&initial_state);
+
     let mut conf = DEFAULT_CONFIG;
     conf.simulations_per_thread = 750;
     conf.silent = true;
-    conf.fidelity_probe = Some(0.00314);
+    conf.fidelity_probe = Some((0.00314, IdealState::Full(ideal_ρ))); // 2x2
 
     let mut csv_data = Vec::new();
 
@@ -130,7 +141,7 @@ fn fidelity_data() {
         for j in 0..=20 {
             conf.χ_0 = i as fp / 5.0;
             conf.β = Complex::new(j as fp, 0.0);
-            let simulation_results = simulate::<false, false, false>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), &conf, None);
+            let simulation_results = simulate::<false, false, false>(initial_state.clone(), &conf, None);
             let fidelities = simulation_results.fidelity_probe_results.as_ref().unwrap();
             let zero = Real::splat(0.0);
             let n = (fidelities.len() * Real::LANES) as fp;
@@ -238,8 +249,16 @@ fn purity_data_varying_chi() {
 
 
 fn simple() {
+    let mut conf = DEFAULT_CONFIG;
+    let initial_state = InitialState::Probabilites(vec![
+        0.25,0.1,0.4,0.25
+    ]);
+    conf.Φ = 1.0;
+
+
+
     let start = std::time::Instant::now();
-    simulate::<false, false, true>(InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec()), &DEFAULT_CONFIG, None);
+    simulate::<false, false, true>(initial_state, &conf, None);
     let elapsed = start.elapsed().as_millis();
     println!(
         "Simulations took {elapsed} ms ({} sim/s, {} steps/s)",
@@ -264,9 +283,9 @@ fn main() {
 
     //feed_current_known_state();
     //simple();
-    //fidelity_data();
-    // purity_data();
-    purity_data_varying_chi()
+    fidelity_data();
+    //purity_data();
+    //purity_data_varying_chi()
 
 
 }

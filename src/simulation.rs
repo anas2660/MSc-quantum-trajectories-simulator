@@ -30,7 +30,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
         }
     };
 
-    let mut parameter_file   = create_output_file("parameters.txt");
+    // let mut parameter_file   = create_output_file("parameters.txt");
     let mut data_file        = create_output_file("trajectories.dat");
     let mut hist_file        = create_output_file("hist.dat");
     let mut current_file     = create_output_file("currents.dat");
@@ -135,9 +135,6 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                 let now = std::time::Instant::now();
                 let mut total_section_time = 0;
 
-                // Calculate ideal ρ.
-                let ideal_ρ = get_ideal_ρ(&initial_state);
-
                 // Create initial system.
                 let (initial_system, circuit) = QubitSystem::new(initial_state, config);
 
@@ -145,8 +142,13 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                 let mut rng = thread_rng();
                 let mut S = SGenerator::new(&mut rng);
 
+                // Calculate ideal ρ.
+                //let ideal_ρ = get_ideal_ρ(&initial_state);
+                let ideal_ρ_operator = config.fidelity_probe.as_ref().map(|(_,s)| if let IdealState::Full(op) = s { Some(op) } else { None }).flatten();
+                let ideal_ρ_2x2 = config.fidelity_probe.as_ref().map(|(_,s)| if let IdealState::Partial(op) = s { Some(op) } else { None }).flatten();
+
                 // Calculate simulation step at which to probe the fidelity.
-                let fidelity_probe_step = config.fidelity_probe.map(|t| ((t/Δt).round() as usize).min(config.step_count as usize)-1 );
+                let fidelity_probe_step = config.fidelity_probe.as_ref().map(|(t,_)| ((t/Δt).round() as usize).min(config.step_count as usize)-1);
 
                 // sqrt(η/2) is from the definition of dZ.
                 // sqrt(dt) is to make the variance σ = dt
@@ -216,12 +218,18 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                         system.ρ.normalize();
 
                         // Compute fidelity.
-                        //let fidelity_part = (system.ρ*ideal_ρ).sqrt().trace();
-                        //fidelities[step] = fidelity_part*fidelity_part;
                         if Operator::SIZE == 2 {
                             if let Some(probe_step) = fidelity_probe_step {
                                 if step == probe_step {
-                                    fidelities.push(system.ρ.fidelity_2x2(&ideal_ρ));
+                                    let ideal = ideal_ρ_operator.as_ref().expect("Fidelity: For QUBIT_SIZE = 1, IdealState has to be given IdealState::Full.");
+                                    fidelities.push(system.ρ.fidelity_2x2(ideal));
+                                }
+                            }
+                        } else if Operator::SIZE == 4 {
+                            if let Some(probe_step) = fidelity_probe_step {
+                                if step == probe_step {
+                                    let ideal = ideal_ρ_2x2.as_ref().expect("Fidelity: For QUBIT_SIZE = 2, IdealState has to be given IdealState::Partial.");
+                                    fidelities.push(system.ρ.fidelity_4x4_partial_traced(ideal));
                                 }
                             }
                         }

@@ -1,5 +1,13 @@
+use crate::operator::Operator;
+
 use super::num::*;
 
+
+#[allow(clippy::large_enum_variant)]
+pub enum IdealState {
+    Full(Operator), // Only works for 2x2, where qubit_count=1
+    Partial((Complex,Complex,Complex,Complex)) // Row major. Only works for 4x4, where qubit_count=2
+}
 
 pub struct SimulationConfig {
     // Simulation constants
@@ -12,7 +20,7 @@ pub struct SimulationConfig {
     // trajectory count is simulation_count*Real::LANES (which is 4 for double
     // precision and 8 for single precision)
 
-    pub fidelity_probe: Option<fp>, // Optinal time at which to probe the fidelity
+    pub fidelity_probe: Option<(fp, IdealState)>, // (Time at which to probe, Ideal state to compare with)
     pub measure_purity: bool,
 
     // Physical constants

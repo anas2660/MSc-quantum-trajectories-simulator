@@ -114,7 +114,7 @@ impl QubitSystem {
         let T = Δt * (c.step_count-1) as fp;
 
         let circuit = QuantumCircuit::new(&[
-            (H /*+ not[0]*/, T*0.5),
+            (H + not[0], T*0.5),
             //(H, T*0.5)
         ], c);
 
