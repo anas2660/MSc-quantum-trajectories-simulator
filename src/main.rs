@@ -81,7 +81,7 @@ const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
     Φ: 0.0,    // c_out phase shift Phi
     γ_φ: 0.001,
     g_0: 10.0, // sqrt(Δ_s_0 χ)
-    χ_0: 0.1,
+    χ_0: 0.6,
     ω_r: 2500.0,
 
     Δ_r: 0.0,
@@ -148,10 +148,10 @@ fn fidelity_data() {
     );
 
     let mut conf = DEFAULT_CONFIG;
-    conf.simulations_per_thread = 3;
-    conf.thread_count = 6;
+    conf.simulations_per_thread = 50;
+    conf.thread_count = 10;
     //conf.step_count = 4000;
-    conf.step_count = 1257/8; //pi/(2×500×0.0000025)
+    conf.step_count = 40000; //1257/8; //pi/(2×500×0.0000025)
     conf.silent = true;
     conf.fidelity_probe = Some((0.00314, IdealState::Partial(ideal_ρ))); // 2x2
     conf.χ_0 = 0.6;
