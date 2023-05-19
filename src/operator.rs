@@ -373,12 +373,11 @@ impl Operator {
             (s*&m.0,  s*&m.1, s*&m.2,  s*&m.3)
         }
 
-        let (ρ_11, ρ_12, ρ_21, ρ_22) = self.partial_trace();
-        let ρ = (ρ_11, ρ_12, ρ_21, ρ_22);
-
+        let ρ = self.partial_trace();
         let m = mul_2x2(&ρ, ideal);
-        let trace = ρ_11 + ρ_22;
-        let determinant = ρ_11*ρ_22 - ρ_21*ρ_12;
+
+        let trace = m.0 + m.3;
+        let determinant = m.0*m.3 - m.1*m.2;
         let s = determinant.sqrt();
         let t = (trace + 2.0*s).sqrt();
         let sqrt_m = scale_2x2(&t.inverse(), &add_2x2(&m, &(s,ZERO,ZERO,s)));
