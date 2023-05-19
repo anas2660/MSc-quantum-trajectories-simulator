@@ -85,13 +85,13 @@ hist_step_count = hist_metadata[1]
 hist_height = hist_metadata[2]
 hist_data = np.reshape(np.frombuffer(hist_data_buffer, np.uint32, offset=12), (hist_step_count, hist_height))
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(12, 5))
 print(np.max(hist_data))
 im = ax.imshow(np.swapaxes(np.minimum(hist_data + np.min(hist_data[hist_data>0]), 10000000), 0, 1), origin='upper', extent=[0, t.max(), float(hist_state_count), 0], aspect='auto',
                cmap=hist_colormap,
                norm=colors.LogNorm()
                )
-ax.set_xlabel("Time")
+ax.set_xlabel(r"Time [$\mu$s]")
 ax.set_ylabel("States")
 ax.set_yticks(ticks=(np.arange(hist_state_count)), minor=True)
 ax.set_yticks(ticks=(np.arange(hist_state_count)+0.5),
