@@ -59,7 +59,9 @@ impl QubitSystem {
             }
         }
 
-        let Δ_b = g.zip(χ).map(|(g,χ)| g*g/χ);
+        //let Δ_b = g.zip(χ).map(|(g,χ)| g*g/χ);
+        let Δ_s = g.zip(χ).map(|(g,χ)| g*g/χ);
+        let Δ_b = Δ_s.map(|Δ_s| config.Δ_br+Δ_s );
 
         // DISPERSIVE
         let a = Operator::from_fn(|r, c| {
