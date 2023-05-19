@@ -38,12 +38,13 @@ impl QubitSystem {
 
         // TODO: Add offsets to config
         //const Δ_s:  [fp; 2] = [Δ_s_0+0., Δ_s_0-0.]; // |ω_r - ω_s|
-        let Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
+        //let Δ_b: [fp; 2] = [20.0, 20.0]; //  ω_b - ω_s
         //let Δ_r: fp = 0.0;
-        let χ: [fp; 2] = [config.χ_0 + 0.00, config.χ_0 - 0.00];
-        let g: [fp; 2] = [config.g_0, config.g_0];
+        //let χ: [fp; 2] = [config.χ_0 + 0.00, config.χ_0 - 0.00];
+        //let g: [fp; 2] = [config.g_0, config.g_0];
 
-        let Δ_b: [fp; Operator::QUBIT_COUNT] = [20.0; Operator::QUBIT_COUNT]; //  ω_b - ω_s
+        //let Δ_b: [fp; Operator::QUBIT_COUNT] = [20.0; Operator::QUBIT_COUNT]; //  ω_b - ω_s
+
         //let Δ_r: fp = 0.0;
         let mut χ: [fp; Operator::QUBIT_COUNT] = [config.χ_0; Operator::QUBIT_COUNT];
         let g: [fp; Operator::QUBIT_COUNT] = [config.g_0; Operator::QUBIT_COUNT];
@@ -58,7 +59,7 @@ impl QubitSystem {
             }
         }
 
-
+        let Δ_b = g.zip(χ).map(|(g,χ)| g*g/χ);
 
         // DISPERSIVE
         let a = Operator::from_fn(|r, c| {
