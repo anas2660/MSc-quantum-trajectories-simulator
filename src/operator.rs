@@ -13,7 +13,7 @@ pub struct Operator {
 }
 
 impl Operator {
-    pub const QUBIT_COUNT: usize = 2;
+    pub const QUBIT_COUNT: usize = 1;
     pub const SIZE: usize = (1 << Operator::QUBIT_COUNT);
     //pub const IDENTITY: Self = Operator::identity();
 
@@ -349,10 +349,17 @@ impl Operator {
     }
 
     pub fn partial_trace(&self) -> (Complex, Complex, Complex, Complex) {
-        (
-            self[(0,0)] + self[(1,1)], self[(0,2)] + self[(1,3)],
-            self[(2,0)] + self[(3,1)], self[(2,2)] + self[(3,3)]
-        )
+        if Operator::QUBIT_COUNT == 1 {
+            (
+                self[(0,0)], self[(0,1)],
+                self[(1,0)], self[(1,1)]
+            )
+        } else {
+            (
+                self[(0,0)] + self[(1,1)], self[(0,2)] + self[(1,3)],
+                self[(2,0)] + self[(3,1)], self[(2,2)] + self[(3,3)]
+            )
+        }
     }
 
     pub fn fidelity_4x4_partial_traced(&self, ideal: &(Complex, Complex, Complex, Complex)) -> Real {

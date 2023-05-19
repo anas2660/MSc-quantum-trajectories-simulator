@@ -8,7 +8,7 @@ chi = data[:,1]
 beta = data[:,2]
 fidelity_mean = data[:,3]
 fidelity_std = data[:,4]
-indices = beta == 7.0
+indices = beta == 30*8.0
 chi = chi[indices]
 fidelity_mean = fidelity_mean[indices]
 fidelity_std = fidelity_std[indices]
@@ -33,9 +33,10 @@ plt.show()
 fig, ax = plt.subplots(figsize=(6,6))
 fidelity_mean = data[:,3]
 new_len = int(np.sqrt(len(fidelity_mean)))
-fidelity_mean = np.reshape(fidelity_mean, (new_len, new_len))
-im = ax.imshow(fidelity_mean,interpolation='bicubic', extent=(0,4,20,0),vmin=0.0, vmax=1.0, aspect="auto")
+print(len(chi))
+fidelity_mean = np.reshape(fidelity_mean, (np.size(chi), int(np.size(fidelity_mean)/np.size(chi))))
+im = ax.imshow(fidelity_mean, interpolation='bicubic', extent=(0,np.max(beta),2,0),vmin=0.0, vmax=1.0, aspect="auto")
 fig.colorbar(im, ax=ax)
-plt.xlabel("$\chi$")
-plt.ylabel("$\\beta$")
+plt.xlabel("$\\beta$")
+plt.ylabel("$\chi$")
 plt.show()

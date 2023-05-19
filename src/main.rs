@@ -61,7 +61,7 @@ const INITIAL_PROBABILITIES: [f64; 4] = [
 ];
 
 // Simulation constants
-pub const Δt: fp = 0.0000025;
+pub const Δt: fp = 0.000000025;
 
 const DEFAULT_CONFIG: SimulationConfig = SimulationConfig {
     step_count: 628,
@@ -138,7 +138,7 @@ fn fidelity_data() {
     }
 
     let initial_state = InitialState::Probabilites(INITIAL_PROBABILITIES.to_vec());
-    // let ideal_ρ = get_ideal_ρ(&initial_state);
+    //let ideal_ρ = get_ideal_ρ(&initial_state);
     let m = get_ideal_ρ(&initial_state);
     let ideal_ρ = (
         m[(0,0)].to_complex(),
@@ -146,24 +146,27 @@ fn fidelity_data() {
         m[(1,0)].to_complex(),
         m[(1,1)].to_complex()
     );
+    let ideal_ρ = m.to_operator();
 
     let mut conf = DEFAULT_CONFIG;
-    conf.simulations_per_thread = 50;
-    conf.thread_count = 10;
+    conf.simulations_per_thread = 500;
+    conf.thread_count = 16;
     //conf.step_count = 4000;
-    conf.step_count = 40000; //1257/8; //pi/(2×500×0.0000025)
+    conf.step_count = (3.45e-5 / Δt) as u32; //pi/(2×500×0.0000025)
     conf.silent = true;
-    conf.fidelity_probe = Some((0.00314, IdealState::Partial(ideal_ρ))); // 2x2
+    conf.fidelity_probe = Some((0.00314, IdealState::Full(ideal_ρ))); // 2x2
     conf.χ_0 = 0.6;
+    conf.κ = 0.2;
+    conf.κ_1 = 0.2;
 
     let mut csv_data = Vec::new();
 
-    for i in 0..=20 {
-        for j in 7..=7 {
+    for i in 0..=200 {
+        for j in 8..=8 {
             //    conf.χ_0 = i as fp / 5.0;
-            conf.β = Complex::new(j as fp, 0.0);
-            let offset = i as fp / 10.0 - 0.6;
-            let chi = 0.6 + offset;
+            conf.β = Complex::new(30.0*j as fp, 0.0);
+            let offset = i as fp / 100.0 - conf.χ_0 + 0.0075;
+            let chi = conf.χ_0 + offset;
             conf.chi_offsets = Some(vec![ChiOffset { index: 0, offset }]);
 
             let simulation_results = simulate::<false, false, false>(initial_state.clone(), &conf, None);
@@ -277,11 +280,17 @@ fn purity_data_varying_chi() {
 fn simple() {
     let mut conf = DEFAULT_CONFIG;
     let initial_state = InitialState::Probabilites(vec![
-        0.25,0.1,0.4,0.25
+        0.25,0.375,0.125,0.25
     ]);
-    conf.Φ = 1.0;
+    //conf.Φ = 1.0;
 
+    let offsets = Some(vec![
+        ChiOffset { index: 0, offset: -0.1 },
+        ChiOffset { index: 1, offset:  0.1 }
+    ]);
 
+    conf.step_count = 2500;
+    conf.chi_offsets = offsets;
 
     let start = std::time::Instant::now();
     simulate::<false, false, true>(initial_state, &conf, None);

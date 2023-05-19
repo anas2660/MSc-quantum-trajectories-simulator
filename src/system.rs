@@ -9,7 +9,7 @@ use crate::{*,
     helpers::*
 };
 
-const ω_not: f64 = 500.0;
+const ω_not: f64 = 45000.0;
 
 #[derive(Clone)]
 pub struct QubitSystem {
