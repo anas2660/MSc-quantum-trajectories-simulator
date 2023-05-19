@@ -294,11 +294,23 @@ fn simple() {
 }
 
 fn feed_current_known_state () {
+    let mut config = DEFAULT_CONFIG;
+    config.step_count = 10000;
+    config.simulations_per_thread = 1;
+    config.thread_count = 1;
+    config.β = C!(10.0);
+
     // Current of known state of |11>
-    let a = simulate::<false, true, false>(InitialState::Probabilites(vec![0.0, 0.45, 0.55, 0.0]), &DEFAULT_CONFIG, None);
+    let a = simulate::<false, true, true>(InitialState::Probabilites(vec![0.25, 0.15, 0.35, 0.25]), &config, None);
+
+    // Sleep 1 second to not overwrite last files
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+
+    let initial_ρ = *Operator::identity().normalize();
 
     // Feed current into perfect superposition.
-    let b = simulate::<true, false, true>(InitialState::Probabilites(vec![0.25, 0.25, 0.25, 0.25]), &DEFAULT_CONFIG, Some(&a));
+    let b = simulate::<true, false, true>(InitialState::DensityMatrix(initial_ρ), &config, Some(&a));
 }
 
 fn main() {
