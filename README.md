@@ -1,4 +1,5 @@
 # Quantum Trajectory Simulator for Multiple Qubits in a Resonator Cavity Under Continuous Heterodyne Detection
+![Example simulations of 10^6 trajectories](HistExample1e6trajectories.png)
 Examples on how to set the system configuration, as well as how to extract data, can be found in [`src/main.rs`](src/main.rs).
 
 ## Requirements
