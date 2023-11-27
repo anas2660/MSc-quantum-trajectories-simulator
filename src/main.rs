@@ -1,5 +1,4 @@
 #![feature(portable_simd)]
-#![feature(array_zip)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(confusable_idents)]

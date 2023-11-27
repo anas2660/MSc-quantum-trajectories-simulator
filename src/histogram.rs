@@ -16,7 +16,7 @@ impl<const BIN_COUNT: usize> Histogram<BIN_COUNT> {
     // }
 
     pub fn add_values(&mut self, v: &Real) {
-        let indices: SV = unsafe { (v * Real::splat(BIN_COUNT as fp)).to_int_unchecked() }
+        let indices: SV = unsafe { std::simd::SimdFloat::to_int_unchecked(v * Real::splat(BIN_COUNT as fp)) }
             .simd_clamp(SV::splat(0), SV::splat(BIN_COUNT as Int - 1));
 
         for index in indices.as_array() {

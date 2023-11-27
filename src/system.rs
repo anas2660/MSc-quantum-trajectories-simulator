@@ -60,7 +60,14 @@ impl QubitSystem {
         }
 
         //let Δ_b = g.zip(χ).map(|(g,χ)| g*g/χ);
-        let Δ_s = g.zip(χ).map(|(g,χ)| g*g/χ);
+        let mut Δ_s = [0.0f32; Operator::QUBIT_COUNT];
+        for ((Δ_s, g), χ_s) in Δ_s.iter_mut().zip(g).zip(χ) {
+            *Δ_s = g*g/χ_s;
+        }
+
+        // = g.zip(χ).map(|(g,χ)| g*g/χ);
+
+
         let Δ_b = Δ_s.map(|Δ_s| config.Δ_br+Δ_s );
 
         // DISPERSIVE
@@ -75,7 +82,12 @@ impl QubitSystem {
         let N = a.dagger() * a;
 
         // Hamiltonian
-        let term2 = apply_and_scale_individually(&Δ_b.zip(χ).map(|(Δ_bs, χ_s)| /**/0.5*Δ_bs*identity + χ_s*N), &σ_z);
+        let mut term2_coefficients = [Operator::zero(); Operator::QUBIT_COUNT];
+        for ((c, Δ_bs), χ_s) in term2_coefficients.iter_mut().zip(Δ_b).zip(χ) {
+            *c = 0.5*Δ_bs*identity + χ_s*N;
+        }
+
+        let term2 = apply_and_scale_individually(&term2_coefficients, &σ_z);
 
         let σ_m = apply_individually_parts(&σ_minus);
         let σ_p = apply_individually_parts(&σ_plus);
