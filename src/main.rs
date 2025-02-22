@@ -289,6 +289,7 @@ fn simple() {
     ]);
 
     conf.step_count = 2500;
+    conf.simulations_per_thread = 100;
     conf.chi_offsets = offsets;
 
     let start = std::time::Instant::now();
