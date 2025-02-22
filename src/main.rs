@@ -31,7 +31,7 @@ mod simulation;
 use simulation::*;
 
 use rand_distr::StandardNormal;
-use std::{io::Write, sync::Arc, simd::{SimdFloat, StdFloat}};
+use std::{io::Write, sync::Arc, simd::{num::SimdFloat, StdFloat}};
 
 use rand::{thread_rng, Rng};
 
@@ -171,7 +171,7 @@ fn fidelity_data() {
             let simulation_results = simulate::<false, false, false>(initial_state.clone(), &conf, None);
             let fidelities = simulation_results.fidelity_probe_results.as_ref().unwrap();
             let zero = Real::splat(0.0);
-            let n = (fidelities.len() * Real::LANES) as fp;
+            let n = (fidelities.len() * Real::LEN) as fp;
 
             // Compute mean.
             let sum = fidelities.iter().fold(zero, |acc, f| acc + f).reduce_sum();
@@ -217,7 +217,7 @@ fn purity_means_and_std(offsets: Option<Vec<ChiOffset>>) -> (Vec<fp>, Vec<fp>) {
     let purities = results.purity_results.as_mut().unwrap();
     purities.transpose();
     let z = Real::splat(0.0);
-    let n = (Real::LANES * conf.simulation_count()) as fp;
+    let n = (Real::LEN * conf.simulation_count()) as fp;
 
     // Compute averages.
     let mean: Vec<fp> = (0..conf.step_count as usize)
@@ -296,8 +296,8 @@ fn simple() {
     let elapsed = start.elapsed().as_millis();
     println!(
         "Simulations took {elapsed} ms ({} sim/s, {} steps/s)",
-        (1000*DEFAULT_CONFIG.simulation_count() as u32 * Real::LANES as u32) as fp / elapsed as fp,
-        (1000*DEFAULT_CONFIG.simulation_count() as u64 * DEFAULT_CONFIG.step_count as u64 * Real::LANES as u64) as u128 / elapsed
+        (1000*DEFAULT_CONFIG.simulation_count() as u32 * Real::LEN as u32) as fp / elapsed as fp,
+        (1000*DEFAULT_CONFIG.simulation_count() as u64 * DEFAULT_CONFIG.step_count as u64 * Real::LEN as u64) as u128 / elapsed
     );
 }
 
@@ -314,7 +314,6 @@ fn feed_current_known_state () {
     // Sleep 1 second to not overwrite last files
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-
     let initial_ρ = *Operator::identity().normalize();
 
     // Feed current into perfect superposition.
@@ -328,8 +327,8 @@ fn main() {
     println!("DOUBLE PRECISION");
 
     //feed_current_known_state();
-    //simple();
-    fidelity_data();
+    simple();
+    //fidelity_data();
     //purity_data();
     //purity_data_varying_chi()
 

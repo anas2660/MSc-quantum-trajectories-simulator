@@ -1,6 +1,6 @@
 use crate::num::*;
 
-use std::simd::SimdOrd;
+use std::simd::cmp::SimdOrd;
 
 // TODO: Control bounds
 #[derive(Clone, Copy, Debug)]
@@ -16,7 +16,7 @@ impl<const BIN_COUNT: usize> Histogram<BIN_COUNT> {
     // }
 
     pub fn add_values(&mut self, v: &Real) {
-        let indices: SV = unsafe { std::simd::SimdFloat::to_int_unchecked(v * Real::splat(BIN_COUNT as fp)) }
+        let indices: SV = unsafe { std::simd::num::SimdFloat::to_int_unchecked(v * Real::splat(BIN_COUNT as fp)) }
             .simd_clamp(SV::splat(0), SV::splat(BIN_COUNT as Int - 1));
 
         for index in indices.as_array() {

@@ -53,7 +53,7 @@ impl SGenerator {
 
     #[inline(always)]
     pub fn gen(&mut self, rng: &mut ThreadRng) -> SV32 {
-        const ONE: SV32 = SV32::from_array([1; SV32::LANES]);
+        const ONE: SV32 = SV32::from_array([1; SV32::LEN]);
 
         let result = mul2(self.v & ONE) - ONE; // Transforms rand -> -1 or 1
 

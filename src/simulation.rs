@@ -53,7 +53,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
 //        ).unwrap();
 
     // metadata
-    current_file.write_all(&(config.simulation_count() as u32 * Real::LANES as u32).to_le_bytes()).unwrap();
+    current_file.write_all(&(config.simulation_count() as u32 * Real::LEN as u32).to_le_bytes()).unwrap();
 
     //current_file.write(&STEP_COUNT.to_le_bytes()).unwrap();
 
@@ -62,7 +62,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
     #[cfg(feature="double-precision")]
     data_file.write_all(&(1u32.to_le_bytes())).unwrap();
 
-    data_file.write_all(&(config.simulation_count() as u32 * Real::LANES as u32).to_le_bytes()).unwrap();
+    data_file.write_all(&(config.simulation_count() as u32 * Real::LEN as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(Operator::SIZE as u32).to_le_bytes()).unwrap();
     data_file.write_all(&(config.step_count + 1).to_le_bytes()).unwrap();
 
@@ -199,11 +199,11 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                                 imag: (y*system.ρ).trace().real
                             };
 
-                            const DT_OVER_SQRT2: Real = Real::from_array([Δt/SQRT_2; Real::LANES]);
+                            const DT_OVER_SQRT2: Real = Real::from_array([Δt/SQRT_2; Real::LEN]);
                             system.dZ = DT_OVER_SQRT2 * &(dI - to_sub);
                         } else {
                             // Sample on the normal distribution.
-                            for lane in 0..Real::LANES {
+                            for lane in 0..Real::LEN {
                                 system.dZ.real[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                                 system.dZ.imag[lane] = rng.sample::<fp, StandardNormal>(StandardNormal);
                             }
@@ -241,7 +241,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                         }
 
                         // Compute current.
-                        const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LANES]);
+                        const SQRT2_OVER_DT: Real = Real::from_array([SQRT_2/Δt; Real::LEN]);
                         let dI = Complex {
                             real: (x*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.real,
                             imag: (y*system.ρ).trace().real + SQRT2_OVER_DT * system.dZ.imag
@@ -271,7 +271,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
                 if !config.silent {
                     println!("Thread {thread_id} finished {} simulations in {total_time} ms ({} μs/sim) (total section time {} ms)",
                              config.simulations_per_thread,
-                             (total_time*1000)/(config.simulations_per_thread*Real::LANES as u32) as u128,
+                             (total_time*1000)/(config.simulations_per_thread*Real::LEN as u32) as u128,
                              total_section_time/1000);
                 }
 
@@ -306,7 +306,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
             }
 
             for the_current in local.current_sum.iter() {
-                for lane in 0..Real::LANES {
+                for lane in 0..Real::LEN {
                     current_file.write_all(&the_current.real.as_array()[lane].to_le_bytes()).unwrap();
                     current_file.write_all(&the_current.imag.as_array()[lane].to_le_bytes()).unwrap();
                 }
@@ -360,7 +360,7 @@ pub fn simulate<const CUSTOM_RECORDS: bool, const RETURN_RECORDS: bool, const WR
 
     // buffer.clear();
     // if !fidelities.is_empty() {
-    //     for lane in 0..V::LANES {
+    //     for lane in 0..V::LEN {
     //         for sim in fidelities.iter() {
     //             buffer.extend_from_slice(&sim[lane].to_le_bytes());
     //             //for f in sim.iter() {

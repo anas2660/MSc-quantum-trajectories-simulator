@@ -1,4 +1,4 @@
-use std::{ops::{DivAssign, Neg}, simd::{StdFloat, SimdFloat}, arch::x86_64::{_mm256_cvtepi32_ps, _mm256_cvtepi32_pd}};
+use std::{ops::{DivAssign, Neg}, simd::{StdFloat, num::SimdFloat}, arch::x86_64::{_mm256_cvtepi32_ps, _mm256_cvtepi32_pd}};
 #[allow(unused_imports)]
 use std::{
     arch::asm,
@@ -127,8 +127,8 @@ impl Complex {
     #[inline]
     pub const fn new(re: fp, im: fp) -> Self {
         Complex {
-            real: V::from_array([re; V::LANES]),
-            imag: V::from_array([im; V::LANES]),
+            real: V::from_array([re; V::LEN]),
+            imag: V::from_array([im; V::LEN]),
         }
     }
 
@@ -151,7 +151,7 @@ impl Complex {
     #[inline]
     pub fn exp(&self) -> Self {
         let mut result = self.clone();
-        for lane in 0..V::LANES {
+        for lane in 0..V::LEN {
             // formula: e^(a + bi) = e^a (cos(b) + i*sin(b))
             let real = result.real.as_array()[lane];
             let imag = result.imag.as_array()[lane];
